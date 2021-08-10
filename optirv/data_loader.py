@@ -29,7 +29,7 @@ class DataLoader:
         self.trade_dir = os.path.join(data_dir, "trade_%s.parquet"%data_mode)
         self.sample_stocks = []
         
-    def pick_stocks(self, mode="random", n=10, stocks=None, refresh=True):
+    def pick_stocks(self, mode="random", n=2, stocks=None, refresh=True):
         """
         Pick a subset of stocks to analyse
         mode:       "random" - randomly select n stocks
