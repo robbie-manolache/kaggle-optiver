@@ -6,5 +6,7 @@ from optirv.lazykaggler.competitions import competition_download, \
 from optirv.lazykaggler.kernels import kernel_output_download
 
 # main functions
-from optirv.pre_proc import compute_WAP, compute_lnret, realized_vol
+from optirv.pre_proc import compute_WAP, compute_lnret, realized_vol, \
+    add_real_vol_cols
 from optirv.data_loader import DataLoader
+from optirv.eval_tools import rmspe
