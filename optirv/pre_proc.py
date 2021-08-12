@@ -26,21 +26,4 @@ def realized_vol(ln_ret_series):
     """
     """
     return np.sqrt(np.sum((ln_ret_series ** 2)))
-
-def add_real_vol_cols(tgt_df, book_df,
-                      varname="WAP_lnret", 
-                      group_cols=["stock_id", "time_id"],
-                      intervals = None):
-    """
-    """
-    
-    if intervals is None:
-        intervals = [(0, 600)]
-
-    for i in intervals:
-        rvol = book_df.query("@i[0] <= seconds_in_bucket < @i[1]").groupby(
-            group_cols, observed=True)[varname].apply(realized_vol)        
-        tgt_df = tgt_df.join(rvol.rename("rvol_%d_%d"%i), on=group_cols)
-        
-    return tgt_df
         
