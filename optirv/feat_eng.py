@@ -30,7 +30,7 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
                       stock_list=None, batch_size=3,
                       pp_merge_book_trade={"full_frame": True, "impute": True},
                       pp_compute_WAP=True,
-                      pp_compute_lnret=(True, {"varname": "WAP"}), 
+                      pp_compute_lnret=(True, {"varnames": ["WAP"]}), 
                       fe_add_real_vol_cols=(True, {"intervals": None})):
     """
     """

@@ -42,15 +42,17 @@ def compute_WAP(book_df):
     book_df.loc[:, "WAP"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
     return
 
-def compute_lnret(data, varname="WAP", group_cols=["stock_id", "time_id"]):
+def compute_lnret(data, varnames=["WAP"], group_cols=["stock_id", "time_id"]):
     """
     """
     if len(group_cols) > 0:
-        data.loc[: , varname+"_lnret"] = data.groupby(group_cols)[varname].transform(
-            lambda x: np.log(x / x.shift(1))
-        )
+        for v in varnames:
+            data.loc[: , v+"_lnret"] = data.groupby(group_cols)[v].transform(
+                lambda x: np.log(x / x.shift(1))
+            )
     else:
-        data.loc[: , varname+"_lnret"] = np.log((data[varname]/data[varname].shift(1)))
+        for v in varnames:
+            data.loc[: , v+"_lnret"] = np.log((data[v]/data[v].shift(1)))
     return
 
 def realized_vol(ln_ret_series):
