@@ -2,6 +2,37 @@
 # Module for pre-processing functions
 
 import numpy as np
+import pandas as pd
+
+def merge_book_trade(book_df, trade_df, full_frame=True, impute=True,
+                     merge_cols=["stock_id", "time_id", "sec"]):
+    """
+    """
+    
+    # create using full frame if desired
+    if full_frame:
+        frame_df = book_df[["stock_id", "time_id"]].drop_duplicates(
+            ).reset_index(drop=True)
+        frame_df = frame_df.merge(pd.DataFrame(range(600), columns=["sec"]), 
+                                  how="cross")
+        df = frame_df.merge(book_df, on=merge_cols, how="left")
+        if impute:
+            df = df.fillna(method="ffill")
+    else:
+        df = book_df.copy()
+        
+    # merge with trade data
+    df = df.merge(trade_df, on=merge_cols, how="left")
+    if impute:
+        # fwdfill missing trade prices then backfill if missing at start
+        df.loc[:, "price"] = df.groupby(["stock_id", "time_id"]
+                                        )["price"].ffill().bfill()
+        # set price to 1 in any intervals with no trades (just in case)
+        df.loc[:, "price"] = df["price"].fillna(1)
+        # set order size and counts to 0 when there are no trades
+        df = df.fillna(0)
+        
+    return df
 
 def compute_WAP(book_df):
     """
