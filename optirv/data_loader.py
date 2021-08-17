@@ -6,6 +6,7 @@
 import os 
 import pandas as pd
 import pyarrow.parquet as pq
+import optirv.pre_proc as pp
 
 def __read_pq_data__(path, stocks):
     """
@@ -77,5 +78,27 @@ class DataLoader:
             print("Select stocks first using pick_stocks method!")
             return      
                            
+    def load_and_preproc(self, add_target=True,
+                         pp_merge_book_trade={"full_frame": True, "impute": True},
+                         pp_compute_WAP=True,
+                         pp_compute_lnret=(True, {"varnames": ["WAP"]})):
+        """
+        """
+        
+        # load then combine book and trade data
+        book_df, trade_df = self.load_parquet()
+        df = pp.merge_book_trade(book_df, trade_df, **pp_merge_book_trade)
+        
+        # add target if required
+        if add_target:
+            tgt_df = self.target_df.query("stock_id in @self.sample_stocks")
+            df = df.merge(tgt_df, on=["stock_id", "time_id"])
             
+        # Compute WAP and log returns for the order book
+        if pp_compute_WAP:
+            pp.compute_WAP(df)
+        if pp_compute_lnret[0]:
+            pp.compute_lnret(df, **pp_compute_lnret[1])
+        
+        return df               
         
