@@ -34,25 +34,25 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute=True,
         
     return df
 
-def compute_WAP(book_df):
+def compute_WAP(df):
     """
     """
-    bidP1, askP1, bidQ1, askQ1 = [book_df[c] for c in ["bid_price1", "ask_price1", 
-                                                       "bid_size1", "ask_size1"]]
-    book_df.loc[:, "WAP"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
+    bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
+                                                  "bid_size1", "ask_size1"]]
+    df.loc[:, "WAP"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
     return
 
-def compute_lnret(data, varnames=["WAP"], group_cols=["stock_id", "time_id"]):
+def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"]):
     """
     """
     if len(group_cols) > 0:
         for v in varnames:
-            data.loc[: , v+"_lnret"] = data.groupby(group_cols)[v].transform(
+            df.loc[: , v+"_lnret"] = df.groupby(group_cols)[v].transform(
                 lambda x: np.log(x / x.shift(1))
             )
     else:
         for v in varnames:
-            data.loc[: , v+"_lnret"] = np.log((data[v]/data[v].shift(1)))
+            df.loc[: , v+"_lnret"] = np.log((df[v]/df[v].shift(1)))
     return
 
 def realized_vol(ln_ret_series):
