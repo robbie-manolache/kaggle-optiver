@@ -4,6 +4,7 @@
 # +++++++++++++++++++++++ #
 
 import os 
+import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 import optirv.pre_proc as pp
@@ -77,6 +78,28 @@ class DataLoader:
             
             print("Select stocks first using pick_stocks method!")
             return      
+    
+    def batcher(self, stock_list=None, batch_size=3):
+        """
+        Yields the base_df, book_df, trade_df for a set of stocks in batches.
+        
+        ARGS
+          stock_list: list of stocks to consider. If None, all stocks selected.
+          batch_size: number of stocks to process in each batch.
+        """        
+        
+        if stock_list is None:
+            stock_list = self.target_df["stock_id"].unique().tolist()
+            
+        for b in range(int(np.ceil(len(stock_list)/batch_size))):
+            
+            # load data for current batch of stocks
+            stocks = stock_list[(b*batch_size):((b+1)*batch_size)]
+            self.pick_stocks(mode="specific", stocks=stocks)
+            base_df = self.target_df.query("stock_id in @self.sample_stocks").copy()
+            book_df, trade_df = self.load_parquet()
+            
+            yield base_df, book_df, trade_df
                            
     def load_and_preproc(self, add_target=True,
                          pp_merge_book_trade={"full_frame": True, "impute": True},
