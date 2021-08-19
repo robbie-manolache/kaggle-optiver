@@ -9,10 +9,19 @@ from tqdm import tqdm
 from optirv.data_loader import DataLoader
 import optirv.pre_proc as pp
 
+def __get_func__(func_name, func_map):
+    """
+    """
+    if type(func_name) == str:
+        return func_map[func_name]
+    else:
+        return func_name      
+
 def add_real_vol_cols(base, df,
                       varnames=["WAP_lnret"], 
                       group_cols=["stock_id", "time_id"],
-                      intervals = None):
+                      intervals = None,
+                      normalize = True):
     """
     """
     
@@ -23,6 +32,8 @@ def add_real_vol_cols(base, df,
         for i in intervals:
             rvol = df.query("@i[0] <= sec < @i[1]").groupby(
                 group_cols, observed=True)[v].apply(pp.realized_vol)
+            if normalize:
+                rvol = rvol * np.sqrt(600/(i[1]-i[0]))
             if intervals is None:
                 new_name = v + "_vol"
             else:
@@ -33,41 +44,52 @@ def add_real_vol_cols(base, df,
 
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
-                      pp_merge_book_trade={"full_frame": True, "impute": True},
-                      pp_compute_WAP=True,
-                      pp_compute_lnret=(True, {"varnames": ["WAP"]}), 
-                      fe_add_real_vol_cols=(True, {"intervals": None})):
+                      pipeline = []):
     """
     """
     
+    # function mapping dictionary
+    func_map = {
+        "compute_WAP": pp.compute_WAP,
+        "compute_lnret": pp.compute_lnret,
+        "add_real_vol_cols": add_real_vol_cols
+    }
+    
+    # set up DataLoader and empty list to collect processed data
     dl = DataLoader(data_mode=data_mode, data_dir=data_dir)
-    if stock_list is None:
-        stock_list = dl.target_df["stock_id"].unique().tolist()
     df_list = []
     
-    for b in tqdm(range(int(np.ceil(len(stock_list)/batch_size)))):
+    # stock batch iterator
+    for base, book, trade in tqdm(dl.batcher(stock_list, batch_size)):
         
-        # load data for current batch of stocks
-        stocks = stock_list[(b*batch_size):((b+1)*batch_size)]
-        dl.pick_stocks(mode="specific", stocks=stocks)
-        base = dl.target_df.query("stock_id in @dl.sample_stocks").copy()
-        book_df, trade_df = dl.load_parquet()
+        # set data dict
+        data_dict = {
+            "book": book,
+            "trade": trade,
+            "base": base
+        }
         
-        # merge book and trade data
-        df = pp.merge_book_trade(book_df, trade_df, **pp_merge_book_trade)
-        
-        # Compute WAP and log returns for the order book
-        if pp_compute_WAP:
-            pp.compute_WAP(df)
-        if pp_compute_lnret[0]:
-            pp.compute_lnret(df, **pp_compute_lnret[1])
-        
-        # Start engineering features
-        if fe_add_real_vol_cols[0]:
-            base = add_real_vol_cols(base, df, **fe_add_real_vol_cols[1])
+        # iterate through pipeline
+        for pl in pipeline:
             
-        # Append finalized batch data
-        df_list.append(base)
+            # get function object to apply
+            func = __get_func__(pl["func"], func_map)
+            
+            # set optional arguments
+            if pl["args"] is None:
+                args = {}
+            else:
+                args = pl["args"]
+                
+            # perform in place or assign to output object
+            if pl["output"] is None:
+                func(*[data_dict[d] for d in pl["input"]], **args)
+            else:
+                data_dict[pl["output"]] = func(*[data_dict[d] for d 
+                                                 in pl["input"]], **args)        
+
+        # append to list
+        df_list.append(data_dict["base"])
         
     return pd.concat(df_list, ignore_index=True)
         
