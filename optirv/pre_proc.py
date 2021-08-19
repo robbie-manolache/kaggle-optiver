@@ -55,6 +55,23 @@ def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"]):
             df.loc[: , v+"_lnret"] = np.log((df[v]/df[v].shift(1)))
     return
 
+def gen_segments(df, n=3, type="obs", group_cols=["stock_id", "time_id"]):
+    """
+    type: "obs" (observation-based) or "sec" (time-based)
+    """
+    if type == "obs":
+        grps = df.groupby(group_cols, observed=True)
+        pctile = grps.cumcount() / grps["sec"].transform("count")
+        df.loc[:, "segment"] = pd.cut(pctile, 
+                                      bins=np.linspace(0, 1, n+1), 
+                                      labels=range(n), 
+                                      include_lowest=True)
+    elif type == "sec":
+        df.loc[:, "segment"] = pd.cut(df["sec"], 
+                                      bins=np.linspace(0, 600, n+1), 
+                                      labels=range(n), 
+                                      include_lowest=True)
+
 def realized_vol(ln_ret_series):
     """
     """
