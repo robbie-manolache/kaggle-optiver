@@ -42,17 +42,33 @@ def compute_WAP(df):
     df.loc[:, "WAP"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
     return
 
-def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"]):
+def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"],
+                  power=[1], absolute=False):
     """
     """
-    if len(group_cols) > 0:
+    for p in power:
         for v in varnames:
-            df.loc[: , v+"_lnret"] = df.groupby(group_cols)[v].transform(
-                lambda x: np.log(x / x.shift(1))
-            )
-    else:
-        for v in varnames:
-            df.loc[: , v+"_lnret"] = np.log((df[v]/df[v].shift(1)))
+            
+            # derive variable name
+            name = v+"_lnret"
+            if p == 2:
+                name += "_sq"
+            elif p > 2:
+                name += "_pwr%d"%p
+            
+            # compute log returns    
+            if len(group_cols) > 0:
+                lnret = df.groupby(group_cols)[v].transform(
+                    lambda x: np.log(x / x.shift(1)))
+            else:
+                lnret = np.log((df[v]/df[v].shift(1)))
+                
+            if absolute:
+                name += "_abs"
+                lnret = np.abs(lnret)
+                
+            df.loc[:, name] = lnret ** p
+         
     return
 
 def gen_segments(df, n=3, type="obs", group_cols=["stock_id", "time_id"]):
