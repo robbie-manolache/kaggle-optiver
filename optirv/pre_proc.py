@@ -71,22 +71,48 @@ def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"],
          
     return
 
-def gen_segments(df, n=3, type="obs", group_cols=["stock_id", "time_id"]):
+def gen_segment_weights(df, n=3, seg_type="obs", 
+                        group_cols=["stock_id", "time_id", "segment"]):
+    
+    seg_df = df[group_cols].drop_duplicates()
+    seg_grps = df.groupby(group_cols, observed=True)
+    
+    if seg_type == "obs":
+        seg_df.loc[:, "end_sec"] = seg_grps["sec"].transform("max")
+        seg_df.loc[seg_df["segment"]==(n-1), "end_sec"] = 599
+        seg_df.loc[:, "start_sec"] = seg_df.groupby(
+            group_cols[:-1])["end_sec"].shift(1).fillna(-1)
+        seg_df.loc[:, "weight"] = (seg_df["end_sec"] - seg_df["start_sec"]) / 600
+        
+    elif seg_type == "sec":
+        seg_df.loc[:, "N_seg"] = seg_grps["sec"].transform("count")
+        seg_df.loc[:, "N_grp"] = seg_df.groupby(group_cols[:-1]).transform("sum")
+        seg_df.loc[:, "weight"] = seg_df["N_seg"] / seg_df["N_grp"]
+        
+    return seg_df[group_cols + ["weight"]]
+        
+def gen_segments(df, n=3, seg_type="obs", 
+                 group_cols=["stock_id", "time_id"],
+                 return_segment_weights=False):
     """
-    type: "obs" (observation-based) or "sec" (time-based)
+    seg_type: "obs" (observation-based) or "sec" (time-based)
     """
-    if type == "obs":
+    if seg_type == "obs":
         grps = df.groupby(group_cols, observed=True)
         pctile = grps.cumcount() / grps["sec"].transform("count")
         df.loc[:, "segment"] = pd.cut(pctile, 
                                       bins=np.linspace(0, 1, n+1), 
                                       labels=range(n), 
                                       include_lowest=True)
-    elif type == "sec":
+    elif seg_type == "sec":
         df.loc[:, "segment"] = pd.cut(df["sec"], 
                                       bins=np.linspace(0, 600, n+1), 
                                       labels=range(n), 
                                       include_lowest=True)
+        
+    if return_segment_weights:
+        group_cols.append("segment")
+        return gen_segment_weights(df, n, seg_type, group_cols)
 
 def realized_vol(ln_ret_series):
     """
