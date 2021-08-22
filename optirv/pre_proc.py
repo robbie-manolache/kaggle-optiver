@@ -43,10 +43,16 @@ def compute_WAP(df):
     return
 
 def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"],
-                  power=[1], absolute=False):
+                  power=[1], absolute=[]):
     """
+    power:      list of powers used to further transform log returns 
+    absolute:   list of powers for which to take absolute value 
+                after transforming log returns by that power
+    
+    NOTE: power and absolute can be different!
     """
-    for p in power:
+    
+    for p in set(power + absolute):
         for v in varnames:
             
             # derive variable name
@@ -62,12 +68,14 @@ def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"],
                     lambda x: np.log(x / x.shift(1)))
             else:
                 lnret = np.log((df[v]/df[v].shift(1)))
+            
+            if p in power:
+                df.loc[:, name] = lnret ** p
                 
-            if absolute:
+            if p in absolute:
                 name += "_abs"
-                lnret = np.abs(lnret)
-                
-            df.loc[:, name] = lnret ** p
+                lnret = np.abs(lnret ** p)
+                df.loc[:, name] = lnret     
          
     return
 
