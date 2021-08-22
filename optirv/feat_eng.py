@@ -17,12 +17,15 @@ def __get_func__(func_name, func_map):
     else:
         return func_name      
 
-def realized_vol(ln_ret_series):
+def realized_vol(ln_ret_series, square_root=False):
     """
     NOTE:   This function does not apply square root i.e. it is the sum of 
             squared returns!
     """
-    return np.sum((ln_ret_series ** 2))
+    if square_root:
+        return np.sqrt(np.sum((ln_ret_series ** 2)))
+    else:
+        return np.sum((ln_ret_series ** 2))
 
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP_lnret"], 

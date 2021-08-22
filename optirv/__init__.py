@@ -11,4 +11,5 @@ from optirv.data_loader import DataLoader
 from optirv.pre_proc import merge_book_trade, compute_WAP, compute_lnret, \
     gen_segment_weights, gen_segments
 from optirv.feat_eng import realized_vol, add_real_vol_cols, feat_eng_pipeline
+from optirv.data_viz import plot_returns_by_time
 from optirv.eval_tools import rmspe
