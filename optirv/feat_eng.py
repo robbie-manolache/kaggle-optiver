@@ -17,19 +17,27 @@ def __get_func__(func_name, func_map):
     else:
         return func_name      
 
-def realized_vol(ln_ret_series, square_root=False):
+def realized_vol(ln_ret_series, subset="all"):
     """
-    NOTE:   This function does not apply square root i.e. it is the sum of 
-            squared returns!
+    subset:     Must be "all", "pos" or "neg"
     """
-    if square_root:
-        return np.sqrt(np.sum((ln_ret_series ** 2)))
-    else:
-        return np.sum((ln_ret_series ** 2))
+    if subset == "pos":
+        ln_ret_series = ln_ret_series * (ln_ret_series > 0)
+    elif subset == "neg":
+        ln_ret_series = ln_ret_series * (ln_ret_series < 0)
+    
+    return np.sum((ln_ret_series ** 2))
+
+def pre_compute_BPV(ln_ret_series):
+    """
+    """
+    
+    return np.sum(ln_ret_series * ln_ret_series.shift(-1))
 
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP_lnret"], 
                       group_cols=["stock_id", "time_id"],
+                      subset = "all",
                       interval_col = "segment",
                       intervals = None):
     """
@@ -54,13 +62,14 @@ def add_real_vol_cols(base, df, weights=None,
             
             # derive volatility var name
             if intervals is None:
-                rvol_name = v + "_vol"
+                rvol_name = "%s_vol_%s"%(v, subset)
             else:
-                rvol_name = v + "_vol_%d_%d"%(i[0], i[1]) 
-
+                rvol_name = "%s_vol_%s_%d_%d"%(v, subset, i[0], i[1])
+                
             # compute realized volatility for each sub-segment of a time_id
             rvol = df.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
-                group_cols, observed=True)[v].apply(realized_vol).rename(rvol_name)
+                group_cols, observed=True)[v].apply(realized_vol, 
+                subset=subset).rename(rvol_name)
 
             # if weights provided, make sure volatility is on the same time scale
             if weights is not None:
@@ -107,11 +116,11 @@ def compute_BPV(base, df, weights=None,
             if intervals is None:
                 BPV_name = v + "_BPV"
                 BPV_jump = v + "_BPV" + "_jump"
-                rvol_name = v + "_vol"
+                rvol_name = v + "_vol_all"
             else:
                 BPV_name = v + "_BPV_%d_%d"%(i[0], i[1])
                 BPV_jump = v + "_BPV_%d_%d"%(i[0], i[1]) + "_jump"
-                rvol_name = v + "_vol_%d_%d"%(i[0], i[1]) 
+                rvol_name = v + "_vol_all_%d_%d"%(i[0], i[1]) 
 
             # check rvol in base
             if rvol_name not in base.columns:
@@ -120,7 +129,7 @@ def compute_BPV(base, df, weights=None,
 
             # compute BPV for each sub-segment of a time_id
             BPV = df.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
-                group_cols, observed=True)[abs_var].apply(pp.pre_compute_BPV).rename(BPV_name)
+                group_cols, observed=True)[abs_var].apply(pre_compute_BPV).rename(BPV_name)
 
             # if weights provided, make sure volatility is on the same time scale
             if weights is not None:
