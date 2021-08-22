@@ -159,13 +159,8 @@ def compute_BPV_retquad(base, df, weights=None,
                 RQ = RQ.rename(RQ_name)
                   
             base = base.join(BPV, on=group_cols)
-<<<<<<< HEAD
             base = base.join(RQ, on=group_cols)
             base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 0, (base[rvol_name] - base[BPV_name]))
-=======
-            base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 
-                                             0, (base[rvol_name] - base[BPV_name]))
->>>>>>> 30e8c94afcc07a827b86b3fb9ca6bca3fe58f26d
         
     return base
 
