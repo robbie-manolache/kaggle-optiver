@@ -3,9 +3,12 @@
 # Feature engineering module #
 # ++++++++++++++++++++++++++ #
 
+import os
+import json
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from datetime import datetime
 from optirv.data_loader import DataLoader
 import optirv.pre_proc as pp
 
@@ -37,7 +40,6 @@ def pre_retquad(ln_ret_series):
 def pre_compute_BPV(ln_ret_series):
     """
     """
-    
     return np.sum(ln_ret_series * ln_ret_series.shift(-1))
 
 def add_real_vol_cols(base, df, weights=None,
@@ -157,15 +159,20 @@ def compute_BPV_retquad(base, df, weights=None,
                 RQ = RQ.rename(RQ_name)
                   
             base = base.join(BPV, on=group_cols)
+<<<<<<< HEAD
             base = base.join(RQ, on=group_cols)
             base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 0, (base[rvol_name] - base[BPV_name]))
+=======
+            base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 
+                                             0, (base[rvol_name] - base[BPV_name]))
+>>>>>>> 30e8c94afcc07a827b86b3fb9ca6bca3fe58f26d
         
     return base
 
 
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
-                      pipeline = []):
+                      pipeline=[], output_dir=None):
     """
     """
     
@@ -173,7 +180,9 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
     func_map = {
         "compute_WAP": pp.compute_WAP,
         "compute_lnret": pp.compute_lnret,
-        "add_real_vol_cols": add_real_vol_cols
+        "gen_segments": pp.gen_segments,
+        "add_real_vol_cols": add_real_vol_cols,
+        "compute_BPV": compute_BPV
     }
     
     # set up DataLoader and empty list to collect processed data
@@ -211,6 +220,14 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
 
         # append to list
         df_list.append(data_dict["base"])
+    
+    # compile output and save if location provided
+    df = pd.concat(df_list, ignore_index=True)
+    if output_dir is not None:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        df.to_csv(os.path.join(output_dir, "%s_%s.csv"%(data_mode, now)), index=False)
+        with open(os.path.join(output_dir, "%s_%s.json"%(data_mode, now)), "w") as wf:
+            json.dump(pipeline, wf)
         
-    return pd.concat(df_list, ignore_index=True)
+    return df
         
