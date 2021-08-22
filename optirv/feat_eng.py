@@ -19,8 +19,10 @@ def __get_func__(func_name, func_map):
 
 def realized_vol(ln_ret_series):
     """
+    NOTE:   This function does not apply square root i.e. it is the sum of 
+            squared returns!
     """
-    return np.sqrt(np.sum((ln_ret_series ** 2)))
+    return np.sum((ln_ret_series ** 2))
 
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP_lnret"], 
@@ -62,7 +64,7 @@ def add_real_vol_cols(base, df, weights=None,
                 wgt = weights.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
                     group_cols, observed=True)[["weight"]].sum()
                 wgt = wgt.join(rvol, on=group_cols)
-                rvol = wgt[rvol_name] * np.sqrt(1 / wgt["weight"])
+                rvol = wgt[rvol_name] / wgt["weight"]
                 rvol = rvol.rename(rvol_name)
                   
             base = base.join(rvol, on=group_cols)
