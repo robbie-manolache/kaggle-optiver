@@ -79,13 +79,6 @@ def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"],
          
     return
 
-def pre_compute_BPV(ln_ret_series):
-    """
-    """
-    
-    return np.sum(ln_ret_series * ln_ret_series.shift(-1))
-
-
 def gen_segment_weights(df, n=3, seg_type="obs", 
                         group_cols=["stock_id", "time_id", "segment"]):
     
