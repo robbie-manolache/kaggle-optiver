@@ -45,9 +45,9 @@ def pre_compute_BPV(ln_ret_series):
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP_lnret"], 
                       group_cols=["stock_id", "time_id"],
-                      subset = "all",
-                      interval_col = "segment",
-                      intervals = None):
+                      subset="all",
+                      interval_col="segment",
+                      intervals=None):
     """
     weights:    pandas.DataFrame containing a "weight" column and the same
                 group_cols and interval_col as df. For a given interval, the 
@@ -94,10 +94,10 @@ def add_real_vol_cols(base, df, weights=None,
 
 
 def compute_BPV_retquad(base, df, weights=None,
-                varnames=["WAP_lnret"], 
-                group_cols=["stock_id", "time_id"],
-                interval_col = "segment",
-                intervals = None):
+                        varnames=["WAP_lnret"], 
+                        group_cols=["stock_id", "time_id"],
+                        interval_col="segment",
+                        intervals=None):
     """
     weights:    pandas.DataFrame containing a "weight" column and the same
                 group_cols and interval_col as df. For a given interval, the 
@@ -160,7 +160,8 @@ def compute_BPV_retquad(base, df, weights=None,
                   
             base = base.join(BPV, on=group_cols)
             base = base.join(RQ, on=group_cols)
-            base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 0, (base[rvol_name] - base[BPV_name]))
+            base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 
+                                             0, (base[rvol_name] - base[BPV_name]))
         
     return base
 
@@ -177,7 +178,7 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         "compute_lnret": pp.compute_lnret,
         "gen_segments": pp.gen_segments,
         "add_real_vol_cols": add_real_vol_cols,
-        "compute_BPV": compute_BPV
+        "compute_BPV_retquad": compute_BPV_retquad
     }
     
     # set up DataLoader and empty list to collect processed data
