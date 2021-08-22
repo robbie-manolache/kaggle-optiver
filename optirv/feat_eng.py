@@ -28,6 +28,12 @@ def realized_vol(ln_ret_series, subset="all"):
     
     return np.sum((ln_ret_series ** 2))
 
+def pre_retquad(ln_ret_series):
+    """
+    calculate returns to the power of 4
+    """
+    return np.sqrt(np.sum((ln_ret_series ** 4)) * len(ln_ret_series)/3)
+
 def pre_compute_BPV(ln_ret_series):
     """
     """
@@ -63,6 +69,7 @@ def add_real_vol_cols(base, df, weights=None,
             # derive volatility var name
             if intervals is None:
                 rvol_name = "%s_vol_%s"%(v, subset)
+                            
             else:
                 rvol_name = "%s_vol_%s_%d_%d"%(v, subset, i[0], i[1])
                 
@@ -84,7 +91,7 @@ def add_real_vol_cols(base, df, weights=None,
     return base
 
 
-def compute_BPV(base, df, weights=None,
+def compute_BPV_retquad(base, df, weights=None,
                 varnames=["WAP_lnret"], 
                 group_cols=["stock_id", "time_id"],
                 interval_col = "segment",
@@ -116,10 +123,12 @@ def compute_BPV(base, df, weights=None,
             if intervals is None:
                 BPV_name = v + "_BPV"
                 BPV_jump = v + "_BPV" + "_jump"
+                RQ_name = v + "_RQ"
                 rvol_name = v + "_vol_all"
             else:
                 BPV_name = v + "_BPV_%d_%d"%(i[0], i[1])
                 BPV_jump = v + "_BPV_%d_%d"%(i[0], i[1]) + "_jump"
+                RQ_name = v + "_RQ_%d_%d"%(i[0], i[1])
                 rvol_name = v + "_vol_all_%d_%d"%(i[0], i[1]) 
 
             # check rvol in base
@@ -127,19 +136,28 @@ def compute_BPV(base, df, weights=None,
                 print("%d needs to be computed"%rvol_name)
                 return
 
-            # compute BPV for each sub-segment of a time_id
+            # compute BPV and ret_quad for each sub-segment of a time_id
             BPV = df.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
                 group_cols, observed=True)[abs_var].apply(pre_compute_BPV).rename(BPV_name)
+
+            RQ = df.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
+                group_cols, observed=True)[v].apply(pre_retquad).rename(RQ_name)
 
             # if weights provided, make sure volatility is on the same time scale
             if weights is not None:
                 wgt = weights.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
                     group_cols, observed=True)[["weight"]].sum()
                 wgt = wgt.join(BPV, on=group_cols)
+                wgt = wgt.join(RQ, on=group_cols)
+
                 BPV = wgt[BPV_name] * (1 / wgt["weight"]) * (np.pi/2)
                 BPV = BPV.rename(BPV_name)
+
+                RQ = wgt[RQ_name] * (1 / wgt["weight"])
+                RQ = RQ.rename(RQ_name)
                   
             base = base.join(BPV, on=group_cols)
+            base = base.join(RQ, on=group_cols)
             base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 0, (base[rvol_name] - base[BPV_name]))
         
     return base
