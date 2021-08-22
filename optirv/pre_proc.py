@@ -121,9 +121,4 @@ def gen_segments(df, n=3, seg_type="obs",
     if return_segment_weights:
         group_cols.append("segment")
         return gen_segment_weights(df, n, seg_type, group_cols)
-
-def realized_vol(ln_ret_series):
-    """
-    """
-    return np.sqrt(np.sum((ln_ret_series ** 2)))
         

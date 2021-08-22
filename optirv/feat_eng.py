@@ -17,6 +17,11 @@ def __get_func__(func_name, func_map):
     else:
         return func_name      
 
+def realized_vol(ln_ret_series):
+    """
+    """
+    return np.sqrt(np.sum((ln_ret_series ** 2)))
+
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP_lnret"], 
                       group_cols=["stock_id", "time_id"],
@@ -41,18 +46,26 @@ def add_real_vol_cols(base, df, weights=None,
 
     for v in varnames:
         for i in intervals:
+            
+            # derive volatility var name
+            if intervals is None:
+                rvol_name = v + "_vol"
+            else:
+                rvol_name = v + "_vol_%d_%d"%(i[0], i[1]) 
+
+            # compute realized volatility for each sub-segment of a time_id
             rvol = df.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
-                group_cols, observed=True)[v].apply(pp.realized_vol)
+                group_cols, observed=True)[v].apply(realized_vol).rename(rvol_name)
+
+            # if weights provided, make sure volatility is on the same time scale
             if weights is not None:
                 wgt = weights.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
                     group_cols, observed=True)[["weight"]].sum()
-                wgt = wgt.join(rvol, on = group_cols)
-                rvol = wgt[v] / wgt["weight"]
-            if intervals is None:
-                new_name = v + "_vol"
-            else:
-                new_name = v + "_vol_%d_%d"%(i[0], i[1])       
-            base = base.join(rvol.rename(new_name), on=group_cols)
+                wgt = wgt.join(rvol, on=group_cols)
+                rvol = wgt[rvol_name] * np.sqrt(1 / wgt["weight"])
+                rvol = rvol.rename(rvol_name)
+                  
+            base = base.join(rvol, on=group_cols)
         
     return base
 
