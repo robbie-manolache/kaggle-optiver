@@ -3,9 +3,12 @@
 # Feature engineering module #
 # ++++++++++++++++++++++++++ #
 
+import os
+import json
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from datetime import datetime
 from optirv.data_loader import DataLoader
 import optirv.pre_proc as pp
 
@@ -120,7 +123,8 @@ def compute_BPV(base, df, weights=None,
 
             # compute BPV for each sub-segment of a time_id
             BPV = df.query("@i[0] <= %s <= @i[1]"%interval_col).groupby(
-                group_cols, observed=True)[abs_var].apply(pp.pre_compute_BPV).rename(BPV_name)
+                group_cols, observed=True)[abs_var].apply(pp.pre_compute_BPV
+                                                          ).rename(BPV_name)
 
             # if weights provided, make sure volatility is on the same time scale
             if weights is not None:
@@ -131,14 +135,15 @@ def compute_BPV(base, df, weights=None,
                 BPV = BPV.rename(BPV_name)
                   
             base = base.join(BPV, on=group_cols)
-            base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 0, (base[rvol_name] - base[BPV_name]))
+            base.loc[:, BPV_jump] = np.where((base[rvol_name] - base[BPV_name]) < 0, 
+                                             0, (base[rvol_name] - base[BPV_name]))
         
     return base
 
 
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
-                      pipeline = []):
+                      pipeline=[], output_dir=None):
     """
     """
     
@@ -146,7 +151,9 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
     func_map = {
         "compute_WAP": pp.compute_WAP,
         "compute_lnret": pp.compute_lnret,
-        "add_real_vol_cols": add_real_vol_cols
+        "gen_segments": pp.gen_segments,
+        "add_real_vol_cols": add_real_vol_cols,
+        "compute_BPV": compute_BPV
     }
     
     # set up DataLoader and empty list to collect processed data
@@ -184,6 +191,14 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
 
         # append to list
         df_list.append(data_dict["base"])
+    
+    # compile output and save if location provided
+    df = pd.concat(df_list, ignore_index=True)
+    if output_dir is not None:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        df.to_csv(os.path.join(output_dir, "%s_%s.csv"%(data_mode, now)), index=False)
+        with open(os.path.join(output_dir, "%s_%s.json"%(data_mode, now)), "w") as wf:
+            json.dump(pipeline, wf)
         
-    return pd.concat(df_list, ignore_index=True)
+    return df
         
