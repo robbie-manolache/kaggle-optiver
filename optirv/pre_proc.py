@@ -58,8 +58,8 @@ def gen_ob_slope(df):
     bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
     bidQ1, askQ1, bidQ2, askQ2 = [np.log(v) for v in [bidQ1, askQ1, bidQ2, askQ2]]
 
-    df.loc[:, "Slope_ask"] = 1/2 * ((askQ1 / (askP1/m1 - 1)) + ((askQ2/askQ1 - 1) / (askP2/askP1 - 1)))
-    df.loc[:, "Slope_bid"] = 1/2 * ((bidQ1 / (bidP1/m1 - 1)) + ((bidQ2/bidQ1 - 1) / (bidP2/bidP1 - 1)))
+    df.loc[:, "slope_ask"] = 1/2 * ((askQ1 / (askP1/m1 - 1)) + ((askQ2/askQ1 - 1) / (askP2/askP1 - 1)))
+    df.loc[:, "slope_bid"] = 1/2 * ((bidQ1 / (bidP1/m1 - 1)) + ((bidQ2/bidQ1 - 1) / (bidP2/bidP1 - 1)))
 
     return
 
