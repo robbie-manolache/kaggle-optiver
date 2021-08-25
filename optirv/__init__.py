@@ -10,6 +10,9 @@ from optirv.lazykaggler.datasets import gen_dataset_metafile, upload_dataset
 from optirv.data_loader import DataLoader
 from optirv.pre_proc import merge_book_trade, compute_WAP, compute_lnret, \
     gen_segment_weights, gen_segments
-from optirv.feat_eng import realized_vol, add_real_vol_cols, compute_BPV_retquad, feat_eng_pipeline
+from optirv.feat_eng import realized_vol, add_real_vol_cols, compute_BPV_retquad, \
+    feat_eng_pipeline
+from optirv.final_feats import square_vars, interact_vars, compute_ratio, \
+    final_feature_pipe
 from optirv.data_viz import plot_returns_by_time, plot_fcst_vs_act
 from optirv.eval_tools import rmspe
