@@ -39,10 +39,31 @@ def compute_WAP(df):
     """
     bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
                                                   "bid_size1", "ask_size1"]]
-    df.loc[:, "WAP"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
+    bidP2, askP2, bidQ2, askQ2 = [df[c] for c in ["bid_price2", "ask_price2", 
+                                                  "bid_size2", "ask_size2"]]                                            
+    df.loc[:, "WAP1"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
+    df.loc[:, "WAP2"] = (bidP2*askQ2 + askP2*bidQ2)/(bidQ2 + askQ2)
+    df.loc[:, "midquote1"] = (bidP1 + askP1)/2
+    df.loc[:, "midquote2"] = (bidP2 + askP2)/2
+
     return
 
-def compute_lnret(df, varnames=["WAP"], group_cols=["stock_id", "time_id"],
+def gen_ob_slope(df):
+    """
+    generating the slope from the LOB
+    """
+
+    cols = ["bid_price", "ask_price", "bid_size", "ask_size", "midquote"]
+    bidP1, askP1, bidQ1, askQ1, m1 = [df[c+"1"] for c in cols]
+    bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
+    bidQ1, askQ1, bidQ2, askQ2 = [np.log(v) for v in [bidQ1, askQ1, bidQ2, askQ2]]
+
+    df.loc[:, "Slope_ask"] = 1/2 * ((askQ1 / (askP1/m1 - 1)) + ((askQ2/askQ1 - 1) / (askP2/askP1 - 1)))
+    df.loc[:, "Slope_bid"] = 1/2 * ((bidQ1 / (bidP1/m1 - 1)) + ((bidQ2/bidQ1 - 1) / (bidP2/bidP1 - 1)))
+
+    return
+
+def compute_lnret(df, varnames=["WAP1"], group_cols=["stock_id", "time_id"],
                   power=[1], absolute=[]):
     """
     power:      list of powers used to further transform log returns 
@@ -122,3 +143,29 @@ def gen_segments(df, n=3, seg_type="obs",
         new_group_cols = group_cols + ["segment"]
         return gen_segment_weights(df, n, seg_type, new_group_cols)
         
+def gen_distribution_stats(base, df, 
+                            varnames=[], 
+                            dist_unit=["stock_id"],
+                            percentile_spec=[1, 99]):
+    """
+    returning distribution characteristics of a variable, default to by stock
+
+    """
+    
+    for v in varnames:
+        mean_name = v + "_mean"
+        std_dev_name = v + "_std"
+        
+        mean = df.groupby(dist_unit, observed=True)[v].transform("mean").rename(mean_name)
+        std_dev = df.groupby(dist_unit, observed=True)[v].transform("std").rename(std_dev_name)
+
+        base = base.join(mean, on=dist_unit)
+        base = base.join(std_dev, on=dist_unit)
+
+        for i in percentile_spec:
+            pct_temp = df.groupby(dist_unit, observed=True)[v].apply(lambda x: np.percentile(x.dropna(),i)).rename("pct_%d"%i)
+            base = base.join(pct_temp, on=dist_unit)
+
+        return base
+
+
