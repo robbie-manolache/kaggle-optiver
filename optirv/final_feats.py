@@ -13,11 +13,11 @@ def __ratio__(df, v, d, n, log, epsi):
     if log:
         df.loc[:, n] = np.log(df[n])
 
-def square_vars(df, var_names=["target"], new_names=["target"]):
+def square_vars(df, var_names=["target"], new_names=["target"], pwr=2):
     """
     """
     for v, n in zip(var_names, new_names):  
-        df.loc[:, n] = df[v] ** 2
+        df.loc[:, n] = df[v] ** pwr
 
 def interact_vars(df, vars1, vars2, new_names):
     """
@@ -40,6 +40,13 @@ def compute_ratio(df, numer_vars, denom_vars, new_names,
         
         for v, d, n in zip(numer_vars, denom_vars, new_names):
             __ratio__(df, v, d, n, log, epsi)
+            
+def stock_embed_index(df, name=["embed_index"]):
+    """
+    """
+    n_stocks = df["stock_id"].nunique()
+    stock_map = dict(zip(df["stock_id"].unique(), list(range(n_stocks))))
+    df.loc[:, name] = df["stock_id"].map(stock_map)
           
 def final_feature_pipe(df, pipeline=[]):
     """
@@ -48,7 +55,8 @@ def final_feature_pipe(df, pipeline=[]):
     func_map= {
         "square_vars": square_vars,
         "interact_vars": interact_vars,
-        "compute_ratio": compute_ratio
+        "compute_ratio": compute_ratio,
+        "stock_embed_index": stock_embed_index
     }
     
     # iterate through pipeline
