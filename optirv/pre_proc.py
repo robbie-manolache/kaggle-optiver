@@ -60,12 +60,48 @@ def gen_ob_slope(df):
     cols = ["bid_price", "ask_price", "bid_size", "ask_size", "midquote"]
     bidP1, askP1, bidQ1, askQ1, m1 = [df[c+"1"] for c in cols]
     bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
-    bidQ1, askQ1, bidQ2, askQ2 = [np.log(v) for v in [bidQ1, askQ1, bidQ2, askQ2]]
+    bidQ1, askQ1, bidQ2, askQ2 = [np.log(v+1) for v in [bidQ1, askQ1, bidQ2, askQ2]]
 
-    df.loc[:, "slope_ask"] = 1/2 * ((askQ1 / (askP1/m1 - 1)) + ((askQ2/askQ1 - 1) / (askP2/askP1 - 1)))
-    df.loc[:, "slope_bid"] = 1/2 * ((bidQ1 / (bidP1/m1 - 1)) + ((bidQ2/bidQ1 - 1) / (bidP2/bidP1 - 1)))
+    df.loc[:, "slope_ask"] = ((askQ2/askQ1 - 1) / ((askP2/askP1 - 1) * 100))
+    df.loc[:, "slope_bid"] = ((bidQ2/bidQ1 - 1) / (np.abs(bidP2/bidP1 - 1) * 100))
 
     return
+
+ def gen_ob_var(df):  
+    """
+    
+    """
+
+    cols = ["bid_price", "ask_price", "bid_size", "ask_size", "midquote"]
+    bidP1, askP1, bidQ1, askQ1, m1 = [df[c+"1"] for c in cols]
+    bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
+
+    df.loc[:, "ln_depth_total"] = np.log(askQ1*askP1 + bidQ1*bidP1 + askQ2*askP2 + bidQ2*bidP2)
+    df.loc[:, "ratio_depth_bid1"] = (askQ1*askP1 + bidQ1*bidP1)/bidQ1*bidP1
+    df.loc[:, "ratio_depth1_2"] = (askQ1*askP1 + bidQ1*bidP1)/(askQ2*askP2 + bidQ2*bidP2)
+    df.loc[:, "ratio_depth_bid1_2"] = bidQ1*bidP1/bidQ2*bidP2
+    df.loc[:, "ratio_depth_ask1_2"] = askQ1*askP1/askQ2*askP2
+
+    df.loc[:, "quoted_spread1"] = 100 * (askP1 - bidP1)/m1
+    df.loc[:, "quoted_spread2"] = 100 * (askP2 - bidP2)/m1
+    df.loc[:, "ratio_askP"] = askP2/askP1
+    df.loc[:, "ratio_bidP"] = bidP1/bidP2
+
+    return
+
+def gen_tweighted_var(base, df, var_name, 
+                     group_cols = ["stock_id", "time_id"], 
+                     weight_var = "time_length"):
+    """
+    generating aggregated variable weighted by time_length
+    """
+    weighted_var_name = var_name + "_tw"
+    weighted_var = df.groupby(group_cols, observed = True)[[var_name, weight_var]].\
+        apply(lambda x: np.sum(x[var_name] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
+    
+    base = base.join(weighted_var, on = group_cols)
+
+    return base
 
 def compute_lnret(df, varnames=["WAP1"], group_cols=["stock_id", "time_id"],
                   power=[1], absolute=[]):
