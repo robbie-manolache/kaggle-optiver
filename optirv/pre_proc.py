@@ -89,20 +89,6 @@ def gen_ob_var(df):
 
     return
 
-def gen_tweighted_var(base, df, var_name, 
-                     group_cols = ["stock_id", "time_id"], 
-                     weight_var = "time_length"):
-    """
-    generating aggregated variable weighted by time_length
-    """
-    weighted_var_name = var_name + "_tw"
-    weighted_var = df.groupby(group_cols, observed = True)[[var_name, weight_var]].\
-        apply(lambda x: np.sum(x[var_name] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
-    
-    base = base.join(weighted_var, on = group_cols)
-
-    return base
-
 def compute_lnret(df, varnames=["WAP1"], group_cols=["stock_id", "time_id"],
                   power=[1], absolute=[]):
     """
