@@ -3,15 +3,20 @@
 # Feature finalization # -=-=-=-=-=-=-=-=-=-= #
 # -=-=-=-=-=-=-=-=-=-= # -=-=-=-=-=-=-=-=-=-= #
 
+import os
+import json
+from datetime import datetime
 import numpy as np
+import pandas as pd
 from optirv.feat_eng import __get_func__
+import optirv.feat_agg as agg
 
 def __ratio__(df, v, d, n, log, epsi):
     """
     """    
-    df.loc[:, n] = ((df[v] + epsi) / (df[d]+epsi)) 
+    df.loc[:, n] = ((df[v]+epsi) / (df[d]+epsi)) 
     if log:
-        df.loc[:, n] = np.log(df[n])
+        df.loc[:, n] = np.log(df[n]+epsi)
 
 def square_vars(df, var_names=["target"], new_names=["target"], pwr=2):
     """
@@ -47,8 +52,22 @@ def stock_embed_index(df, name=["embed_index"]):
     n_stocks = df["stock_id"].nunique()
     stock_map = dict(zip(df["stock_id"].unique(), list(range(n_stocks))))
     df.loc[:, name] = df["stock_id"].map(stock_map)
-          
-def final_feature_pipe(df, pipeline=[]):
+ 
+def gen_target_class(df, in_col='target', out_col='target_class',
+                     splits=[-0.5, -0.05, 0.05, 0.5]):
+    """
+    Categorize target into different classes by range.
+    """
+    
+    # pad bin splits
+    splits = [-np.inf] + splits + [np.inf]
+
+    # create categorical bin column
+    df.loc[:, out_col] = pd.cut(df[in_col], bins=splits, 
+                                labels=list(range(len(splits)-1))
+                                ).astype(int) 
+         
+def final_feature_pipe(df, pipeline=[], output_dir=None):
     """
     """
     
@@ -56,7 +75,9 @@ def final_feature_pipe(df, pipeline=[]):
         "square_vars": square_vars,
         "interact_vars": interact_vars,
         "compute_ratio": compute_ratio,
-        "stock_embed_index": stock_embed_index
+        "stock_embed_index": stock_embed_index,
+        "agg_by_time_id": agg.agg_by_time_id,
+        "gen_target_class": gen_target_class
     }
     
     # iterate through pipeline
@@ -72,4 +93,9 @@ def final_feature_pipe(df, pipeline=[]):
             args = pl["args"]
             
         # perform in place or assign to output object
-        func(df, **args)                      
+        func(df, **args)  
+        
+    if output_dir is not None:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(os.path.join(output_dir, "final_proc_%s.json"%now), "w") as wf:
+            json.dump(pipeline, wf)                    
