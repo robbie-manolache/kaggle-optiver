@@ -66,3 +66,34 @@ def plot_fcst_vs_act(y_pred, y_true, figsize=(8,8),
     ax.set_xlabel("Actual")
     ax.set_ylabel("Forecast")
     plt.show()   
+    
+def confusion_matrix(df, n_class,
+                     actual="target_class", 
+                     prediction="pred_class",
+                     as_percent=True, ax=None):
+    """
+    Create confusion matrix to visualize classification performance.
+    """
+    
+    # create matrix
+    cfmat = pd.crosstab(df[prediction], df[actual])
+    
+    # convert to fraction
+    if as_percent:
+        cfmat = cfmat / cfmat.sum(axis=1).values.reshape((n_class, 1))
+        vmin, vmax, fmt = 0, 1, ".2%"
+    else:
+        vmin, vmax, fmt = None, None, ".0f"
+    
+    # define ax
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10,10))
+    else:
+        pass    
+    
+    # generate plot
+    sns.heatmap(cfmat, cbar=False, annot=True, fmt=fmt, 
+                ax=ax, vmin=vmin, vmax=vmax, cmap='Blues')
+    plt.xlabel("Actual Class")
+    plt.ylabel("Predicted Class")
+    plt.show()

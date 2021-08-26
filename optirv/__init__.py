@@ -14,6 +14,8 @@ from optirv.pre_proc import merge_book_trade, compute_WAP, compute_lnret, \
 from optirv.feat_eng import realized_vol, add_real_vol_cols, \
     compute_BPV_retquad, feat_eng_pipeline
 from optirv.final_feats import square_vars, interact_vars, compute_ratio, \
-    stock_embed_index, final_feature_pipe
-from optirv.data_viz import plot_returns_by_time, plot_fcst_vs_act
-from optirv.eval_tools import rmspe
+    stock_embed_index, gen_target_class, final_feature_pipe
+from optirv.feat_agg import agg_by_time_id
+from optirv.data_viz import plot_returns_by_time, plot_fcst_vs_act, \
+    confusion_matrix
+from optirv.eval_tools import rmspe, predict_target_class
