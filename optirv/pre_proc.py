@@ -67,7 +67,7 @@ def gen_ob_slope(df):
 
     return
 
- def gen_ob_var(df):  
+def gen_ob_var(df):  
     """
     
     """
