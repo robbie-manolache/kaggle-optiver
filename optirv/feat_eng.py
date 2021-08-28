@@ -44,7 +44,7 @@ def pre_compute_BPV(ln_ret_series):
     return np.sum(ln_ret_series * ln_ret_series.shift(-1))
 
 def add_real_vol_cols(base, df, weights=None,
-                      varnames=["WAP_lnret"], 
+                      varnames=["WAP1_lnret"], 
                       group_cols=["stock_id", "time_id"],
                       subset="all",
                       interval_col="segment",
@@ -95,7 +95,7 @@ def add_real_vol_cols(base, df, weights=None,
 
 
 def compute_BPV_retquad(base, df, weights=None,
-                        varnames=["WAP_lnret"], 
+                        varnames=["WAP1_lnret"], 
                         group_cols=["stock_id", "time_id"],
                         interval_col="segment",
                         intervals=None):
