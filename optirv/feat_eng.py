@@ -40,7 +40,6 @@ def pre_retquad(ln_ret_series):
 def pre_compute_BPV(ln_ret_series):
     """
     """
-    
     return np.sum(ln_ret_series * ln_ret_series.shift(-1))
 
 def add_real_vol_cols(base, df, weights=None,
