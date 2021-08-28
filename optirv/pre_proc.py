@@ -34,8 +34,10 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute=True,
         
     return df
 
-def compute_WAP(df):
+def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     """
+    prepping OB data
+    creating time length between obs
     """
     bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
                                                   "bid_size1", "ask_size1"]]
@@ -45,6 +47,8 @@ def compute_WAP(df):
     df.loc[:, "WAP2"] = (bidP2*askQ2 + askP2*bidQ2)/(bidQ2 + askQ2)
     df.loc[:, "midquote1"] = (bidP1 + askP1)/2
     df.loc[:, "midquote2"] = (bidP2 + askP2)/2
+
+    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].transform(lambda x: (x.shift(-1).fillna(600) - x))
 
     return
 
