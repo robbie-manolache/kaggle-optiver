@@ -101,7 +101,7 @@ def gen_segment_weights(df, n=3, seg_type="obs",
         
 def gen_segments(df, n=3, seg_type="obs", 
                  group_cols=["stock_id", "time_id"],
-                 return_segment_weights=False):
+                 return_segment_weights=True):
     """
     seg_type: "obs" (observation-based) or "sec" (time-based)
     """
