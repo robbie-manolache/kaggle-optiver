@@ -4,8 +4,8 @@
 import numpy as np
 import pandas as pd
 
-def merge_book_trade(book_df, trade_df, full_frame=True, impute=True,
-                     merge_cols=["stock_id", "time_id", "sec"]):
+def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
+                     impute_trade=False, merge_cols=["stock_id", "time_id", "sec"]):
     """
     """
     
@@ -16,14 +16,21 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute=True,
         frame_df = frame_df.merge(pd.DataFrame(range(600), columns=["sec"]), 
                                   how="cross")
         df = frame_df.merge(book_df, on=merge_cols, how="left")
-        if impute:
+        if impute_book:
             df = df.fillna(method="ffill")
     else:
         df = book_df.copy()
         
     # merge with trade data
     df = df.merge(trade_df, on=merge_cols, how="left")
-    if impute:
+
+    # forward/backward fill price
+    if impute_trade == False:
+        # trades are to be compared to OB in the prior second
+        df.loc[:, "price_l1"] = df["price"].shift(1)
+        df.loc[:, "size_l1"] = df["size"].shift(1)
+
+    else:
         # fwdfill missing trade prices then backfill if missing at start
         df.loc[:, "price"] = df.groupby(["stock_id", "time_id"]
                                         )["price"].ffill().bfill()
@@ -31,13 +38,30 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute=True,
         df.loc[:, "price"] = df["price"].fillna(1)
         # set order size and counts to 0 when there are no trades
         df = df.fillna(0)
-        
+            
     return df
+
+def gen_trade_var(df):
+    """
+    generate variables from merged data between trade and book data
+    """
+    bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
+                                                  "bid_size1", "ask_size1"]]
+    bidP2, askP2, bidQ2, askQ2 = [df[c] for c in ["bid_price2", "ask_price2", 
+                                                  "bid_size2", "ask_size2"]]
+    price, size = [df[c] for c in ["price", "size"]]
+
+    df.loc[:, "eff_spread"] = 100 * price/((bidP1 + askP1)/2)
+    df.loc[:, "ratio_size_depth1"] = size/(bidQ1 + askQ1)
+    df.loc[:, "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
+    
+    return
 
 def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     """
     prepping OB data
     creating time length between obs
+    to do: create WAP based on both levels
     """
     bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
                                                   "bid_size1", "ask_size1"]]
@@ -77,10 +101,10 @@ def gen_ob_var(df):
     bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
 
     df.loc[:, "ln_depth_total"] = np.log(askQ1*askP1 + bidQ1*bidP1 + askQ2*askP2 + bidQ2*bidP2)
-    df.loc[:, "ratio_depth_bid1"] = (askQ1*askP1 + bidQ1*bidP1)/bidQ1*bidP1
+    df.loc[:, "ratio_depth_bid1"] = (askQ1*askP1 + bidQ1*bidP1)/(bidQ1*bidP1)
     df.loc[:, "ratio_depth1_2"] = (askQ1*askP1 + bidQ1*bidP1)/(askQ2*askP2 + bidQ2*bidP2)
-    df.loc[:, "ratio_depth_bid1_2"] = bidQ1*bidP1/bidQ2*bidP2
-    df.loc[:, "ratio_depth_ask1_2"] = askQ1*askP1/askQ2*askP2
+    df.loc[:, "ratio_bdepth1_2"] = (bidQ1*bidP1)/(bidQ2*bidP2)
+    df.loc[:, "ratio_adepth1_2"] = (askQ1*askP1)/(askQ2*askP2)
 
     df.loc[:, "quoted_spread1"] = 100 * (askP1 - bidP1)/m1
     df.loc[:, "quoted_spread2"] = 100 * (askP2 - bidP2)/m1

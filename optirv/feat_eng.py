@@ -43,7 +43,7 @@ def pre_compute_BPV(ln_ret_series):
     return np.sum(ln_ret_series * ln_ret_series.shift(-1))
 
 def add_real_vol_cols(base, df, weights=None,
-                      varnames=["WAP1_lnret"], 
+                      varnames=["WAP1_lnret", "WAP2_lnret"], 
                       group_cols=["stock_id", "time_id"],
                       subset="all",
                       interval_col="segment",
@@ -165,17 +165,24 @@ def compute_BPV_retquad(base, df, weights=None,
         
     return base
 
-def gen_tweighted_var(base, df, var_name, 
+def gen_tweighted_var(base, df, var_names = ["slope_ask", "slope_bid",
+                                            "ln_depth_total", "ratio_depth_bid1",
+                                            "ratio_depth1_2", "ratio_bdepth1_2",
+                                            "ratio_adepth1_2", "quoted_spread1",
+                                            "quoted_spread2", "ratio_askP",
+                                            "ratio_bidP"], 
                      group_cols = ["stock_id", "time_id"], 
                      weight_var = "time_length"):
     """
     generating aggregated variable weighted by time_length
     """
-    weighted_var_name = var_name + "_tw"
-    weighted_var = df.groupby(group_cols, observed = True)[[var_name, weight_var]].\
-        apply(lambda x: np.sum(x[var_name] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
-    
-    base = base.join(weighted_var, on = group_cols)
+
+    for v in var_names:
+        weighted_var_name = v + "_tw"
+        weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
+            apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
+        
+        base = base.join(weighted_var, on = group_cols)
 
     return base
 
