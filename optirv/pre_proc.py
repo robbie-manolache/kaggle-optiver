@@ -55,7 +55,7 @@ def gen_trade_var(df):
     df.loc[:, "ratio_size_depth1"] = size/(bidQ1 + askQ1)
     df.loc[:, "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
     
-    return
+    return 
 
 def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     """
@@ -101,10 +101,9 @@ def gen_ob_var(df):
     bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
 
     df.loc[:, "ln_depth_total"] = np.log(askQ1*askP1 + bidQ1*bidP1 + askQ2*askP2 + bidQ2*bidP2)
-    df.loc[:, "ratio_depth_bid1"] = (askQ1*askP1 + bidQ1*bidP1)/(bidQ1*bidP1)
-    df.loc[:, "ratio_depth1_2"] = (askQ1*askP1 + bidQ1*bidP1)/(askQ2*askP2 + bidQ2*bidP2)
-    df.loc[:, "ratio_bdepth1_2"] = (bidQ1*bidP1)/(bidQ2*bidP2)
-    df.loc[:, "ratio_adepth1_2"] = (askQ1*askP1)/(askQ2*askP2)
+    df.loc[:, "ratio_depth1_2"] = (askQ1 + bidQ1)/(askQ2 + bidQ2)
+    df.loc[:, "ratio_a_bdepth1"] = askQ1/bidQ1
+    df.loc[:, "ratio_a_bdepth2"] = (askQ1 + askQ2)/(bidQ1 + bidQ2)
 
     df.loc[:, "quoted_spread1"] = 100 * (askP1 - bidP1)/m1
     df.loc[:, "quoted_spread2"] = 100 * (askP2 - bidP2)/m1
@@ -206,8 +205,8 @@ def gen_distribution_stats(base, df,
         mean_name = v + "_mean"
         std_dev_name = v + "_std"
         
-        mean = df.groupby(dist_unit, observed=True)[v].transform("mean").rename(mean_name)
-        std_dev = df.groupby(dist_unit, observed=True)[v].transform("std").rename(std_dev_name)
+        mean = df.groupby(dist_unit, observed=True)[v].apply("mean").rename(mean_name)
+        std_dev = df.groupby(dist_unit, observed=True)[v].apply("std").rename(std_dev_name)
 
         base = base.join(mean, on=dist_unit)
         base = base.join(std_dev, on=dist_unit)

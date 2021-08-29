@@ -166,10 +166,7 @@ def compute_BPV_retquad(base, df, weights=None,
     return base
 
 def gen_weighted_var(base, df, equal_weight = False, 
-                    var_names = ["slope_ask", "slope_bid",
-                                "ln_depth_total", "ratio_depth_bid1",
-                                "ratio_depth1_2", "ratio_bdepth1_2",
-                                "ratio_adepth1_2", "quoted_spread1",
+                    var_names = ["slope_ask", "slope_bid", "quoted_spread1",
                                 "quoted_spread2", "ratio_askP", "ratio_bidP"], 
                      group_cols = ["stock_id", "time_id"], 
                      weight_var = "time_length"):
@@ -185,12 +182,29 @@ def gen_weighted_var(base, df, equal_weight = False,
         
         else:
             weighted_var_name = v + "_ew"
-            weighted_var = df.groupby(group_cols, observed = True)[[v]].\
-                transform("mean").rename(weighted_var_name)
+            weighted_var = df.groupby(group_cols, observed = True)[v].\
+                apply(lambda x: x.mean()).rename(weighted_var_name)
         
         base = base.join(weighted_var, on = group_cols)
 
     return base
+
+def gen_last_obs(base, df,
+                var_names = ["ln_depth_total", "ratio_a_bdepth2",
+                            "ratio_depth1_2", "ratio_a_bdepth1"],
+                group_cols = ["stock_id", "time_id"]):
+    """
+    generating the last observations for each stock_id-time_id
+    """
+    for v in var_names:
+        last_var_name = v + "_last"
+        last_var = df.groupby(group_cols, observed = True)[group_cols + [v]]\
+            .tail(1).rename(columns={v: last_var_name})
+        
+        base = base.merge(last_var, on = group_cols)
+    
+    return base
+
 
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
