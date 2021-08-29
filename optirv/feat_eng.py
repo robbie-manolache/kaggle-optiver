@@ -165,12 +165,12 @@ def compute_BPV_retquad(base, df, weights=None,
         
     return base
 
-def gen_tweighted_var(base, df, var_names = ["slope_ask", "slope_bid",
-                                            "ln_depth_total", "ratio_depth_bid1",
-                                            "ratio_depth1_2", "ratio_bdepth1_2",
-                                            "ratio_adepth1_2", "quoted_spread1",
-                                            "quoted_spread2", "ratio_askP",
-                                            "ratio_bidP"], 
+def gen_weighted_var(base, df, equal_weight = False, 
+                    var_names = ["slope_ask", "slope_bid",
+                                "ln_depth_total", "ratio_depth_bid1",
+                                "ratio_depth1_2", "ratio_bdepth1_2",
+                                "ratio_adepth1_2", "quoted_spread1",
+                                "quoted_spread2", "ratio_askP", "ratio_bidP"], 
                      group_cols = ["stock_id", "time_id"], 
                      weight_var = "time_length"):
     """
@@ -178,9 +178,15 @@ def gen_tweighted_var(base, df, var_names = ["slope_ask", "slope_bid",
     """
 
     for v in var_names:
-        weighted_var_name = v + "_tw"
-        weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
-            apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
+        if equal_weight == False:
+            weighted_var_name = v + "_tw"
+            weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
+                apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
+        
+        else:
+            weighted_var_name = v + "_ew"
+            weighted_var = df.groupby(group_cols, observed = True)[[v]].\
+                transform("mean").rename(weighted_var_name)
         
         base = base.join(weighted_var, on = group_cols)
 
