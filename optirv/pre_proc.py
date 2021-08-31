@@ -27,8 +27,8 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
     # forward/backward fill price
     if impute_trade == False:
         # trades are to be compared to OB in the prior second
-        df.loc[:, "price_l1"] = df["price"].shift(1)
-        df.loc[:, "size_l1"] = df["size"].shift(1)
+        df.loc[:, "price_f1"] = df["price"].shift(-1)
+        df.loc[:, "size_f1"] = df["size"].shift(-1)
 
     else:
         # fwdfill missing trade prices then backfill if missing at start
@@ -49,12 +49,20 @@ def gen_trade_var(df):
                                                   "bid_size1", "ask_size1"]]
     bidP2, askP2, bidQ2, askQ2 = [df[c] for c in ["bid_price2", "ask_price2", 
                                                   "bid_size2", "ask_size2"]]
-    price, size = [df[c] for c in ["price", "size"]]
+    price, size, price_f1, size_f1 = [df[c] for c in ["price", "size", "price_f1", "size_f1"]]
 
-    df.loc[:, "eff_spread"] = 100 * price/((bidP1 + askP1)/2)
-    df.loc[:, "ratio_size_depth1"] = size/(bidQ1 + askQ1)
-    df.loc[:, "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
-    
+    df.loc[:, "m1"] = (bidP1 + askP1)/2
+
+    sec0 = (df["sec"] == 0)
+
+    df.loc[sec0, "eff_spread"] = (price - (bidP1 + askP1)/2)/(askP1 - bidP1)
+    df.loc[sec0, "ratio_size_depth1"] = size/(bidQ1 + askQ1)
+    df.loc[sec0, "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
+
+    df.loc[~sec0, "eff_spread"] = (price_f1 - (bidP1 + askP1)/2)/(askP1 - bidP1)
+    df.loc[~sec0, "ratio_size_depth1"] = size_f1/(bidQ1 + askQ1)
+    df.loc[~sec0, "ratio_size_depth2"] = size_f1/(bidQ1 + askQ1 + bidQ2 + askQ2)
+
     return 
 
 def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
@@ -205,8 +213,8 @@ def gen_distribution_stats(base, df,
         mean_name = v + "_mean"
         std_dev_name = v + "_std"
         
-        mean = df.groupby(dist_unit, observed=True)[v].apply("mean").rename(mean_name)
-        std_dev = df.groupby(dist_unit, observed=True)[v].apply("std").rename(std_dev_name)
+        mean = df.groupby(dist_unit, observed=True)[v].apply(lambda x: x.mean()).rename(mean_name)
+        std_dev = df.groupby(dist_unit, observed=True)[v].apply(lambda x: x.std()).rename(std_dev_name)
 
         base = base.join(mean, on=dist_unit)
         base = base.join(std_dev, on=dist_unit)

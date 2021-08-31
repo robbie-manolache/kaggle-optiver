@@ -191,7 +191,8 @@ def gen_weighted_var(base, df, equal_weight = False,
 
 def gen_last_obs(base, df,
                 var_names = ["ln_depth_total", "ratio_a_bdepth2",
-                            "ratio_depth1_2", "ratio_a_bdepth1"],
+                            "ratio_depth1_2", "ratio_a_bdepth1",
+                            "quoted_spread1", "quoted_spread2",],
                 group_cols = ["stock_id", "time_id"]):
     """
     generating the last observations for each stock_id-time_id
