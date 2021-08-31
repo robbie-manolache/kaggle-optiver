@@ -20,4 +20,5 @@ from optirv.feat_agg import agg_by_time_id
 from optirv.data_viz import plot_returns_by_time, plot_fcst_vs_act, \
     confusion_matrix
 from optirv.train_classifier import train_lgbm_classifier
+from optirv.train_regressor import build_NN_model, train_NN_model
 from optirv.eval_tools import rmspe, predict_target_class

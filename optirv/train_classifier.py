@@ -55,7 +55,7 @@ def train_lgbm_classifier(config,
     if output_dir is not None:
         
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_name =  "%s_%s.txt"%(model_prefix, now)
+        model_name =  "%s_%s"%(model_prefix, now)
         
         if save_model:
             model.save_model(os.path.join(output_dir, "%s.txt"%model_name))
