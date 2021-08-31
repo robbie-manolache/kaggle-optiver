@@ -169,14 +169,14 @@ def gen_weighted_var(base, df, equal_weight = False,
                     var_names = ["slope_ask", "slope_bid", "quoted_spread1",
                                 "quoted_spread2", "ratio_askP", "ratio_bidP"], 
                      group_cols = ["stock_id", "time_id"], 
-                     weight_var = "time_length"):
+                     weight_var = "time_length", weight_suffix = "_tw"):
     """
     generating aggregated variable weighted by time_length
     """
 
     for v in var_names:
         if equal_weight == False:
-            weighted_var_name = v + "_tw"
+            weighted_var_name = v + weight_suffix
             weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
                 apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
         
@@ -192,7 +192,8 @@ def gen_weighted_var(base, df, equal_weight = False,
 def gen_last_obs(base, df,
                 var_names = ["ln_depth_total", "ratio_a_bdepth2",
                             "ratio_depth1_2", "ratio_a_bdepth1",
-                            "quoted_spread1", "quoted_spread2",],
+                            "quoted_spread1", "quoted_spread2",
+                            "ratio_askP", "ratio_bidP"],
                 group_cols = ["stock_id", "time_id"]):
     """
     generating the last observations for each stock_id-time_id

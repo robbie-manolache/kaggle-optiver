@@ -55,11 +55,11 @@ def gen_trade_var(df):
 
     sec0 = (df["sec"] == 0)
 
-    df.loc[sec0, "eff_spread"] = (price - (bidP1 + askP1)/2)/(askP1 - bidP1)
+    df.loc[sec0, "eff_spread"] = 100 * (price / ((bidP1 + askP1)/2))
     df.loc[sec0, "ratio_size_depth1"] = size/(bidQ1 + askQ1)
     df.loc[sec0, "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
 
-    df.loc[~sec0, "eff_spread"] = (price_f1 - (bidP1 + askP1)/2)/(askP1 - bidP1)
+    df.loc[~sec0, "eff_spread"] = 100 * (price_f1 / ((bidP1 + askP1)/2))
     df.loc[~sec0, "ratio_size_depth1"] = size_f1/(bidQ1 + askQ1)
     df.loc[~sec0, "ratio_size_depth2"] = size_f1/(bidQ1 + askQ1 + bidQ2 + askQ2)
 
