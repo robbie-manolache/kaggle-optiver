@@ -87,7 +87,7 @@ def confusion_matrix(df, n_class,
     
     # define ax
     if ax is None:
-        _, ax = plt.subplots(figsize=(10,10))
+        _, ax = plt.subplots(figsize=(5,5))
     else:
         pass    
     
