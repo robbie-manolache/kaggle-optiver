@@ -25,5 +25,5 @@ shutil.copy2(os.path.join("dist", file_name),
 
 # upload to Kaggle datasets
 upload_dataset(dst_dir,
-               new_version=False,
-               version_notes="")
+               new_version=True,
+               version_notes="Updated to 0.4")
