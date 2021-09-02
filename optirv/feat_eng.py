@@ -189,7 +189,7 @@ def gen_weighted_var(base, df, equal_weight = False,
 
     return base
 
-def gen_last_obs(base, df,
+def gen_last_obs(base, df, n_rows=1,
                 var_names = ["ln_depth_total", "ratio_a_bdepth2",
                             "ratio_depth1_2", "ratio_a_bdepth1",
                             "quoted_spread1", "quoted_spread2",
@@ -199,9 +199,18 @@ def gen_last_obs(base, df,
     generating the last observations for each stock_id-time_id
     """
     for v in var_names:
+        
         last_var_name = v + "_last"
+        
+        if n_rows > 1:
+            last_var_name += (str(n_rows) + "_avg")
+        
         last_var = df.groupby(group_cols, observed = True)[group_cols + [v]]\
-            .tail(1).rename(columns={v: last_var_name})
+            .tail(n_rows).rename(columns={v: last_var_name})
+        
+        if n_rows > 1:
+            last_var = last_var.groupby(group_cols, observed=True)[last_var_name]\
+                .mean().reset_index()
         
         base = base.merge(last_var, on = group_cols)
     
@@ -216,11 +225,17 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
     
     # function mapping dictionary
     func_map = {
+        "merge_book_trade": pp.merge_book_trade,
+        "gen_trade_var": pp.gen_trade_var,
+        "gen_ob_slope": pp.gen_ob_slope,
+        "gen_ob_var": pp.gen_ob_var,
         "compute_WAP": pp.compute_WAP,
         "compute_lnret": pp.compute_lnret,
         "gen_segments": pp.gen_segments,
         "add_real_vol_cols": add_real_vol_cols,
-        "compute_BPV_retquad": compute_BPV_retquad
+        "compute_BPV_retquad": compute_BPV_retquad,
+        "gen_weighted_var": gen_weighted_var,
+        "gen_last_obs": gen_last_obs
     }
     
     # set up DataLoader and empty list to collect processed data
