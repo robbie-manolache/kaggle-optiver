@@ -41,7 +41,7 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
             
     return df
 
-def gen_trade_var(df):
+def gen_merged_book_trade_var(df):
     """
     generate variables from merged data between trade and book data
     """
@@ -111,10 +111,21 @@ def gen_ob_var(df):
     df.loc[:, "ratio_a_bdepth1"] = askQ1/bidQ1
     df.loc[:, "ratio_a_bdepth2"] = (askQ1 + askQ2)/(bidQ1 + bidQ2)
 
-    df.loc[:, "quoted_spread1"] = 100 * (askP1 - bidP1)/m1
-    df.loc[:, "quoted_spread2"] = 100 * (askP2 - bidP2)/m1
+    df.loc[:, "q_spread1"] = 100 * (askP1 - bidP1)/m1
+    df.loc[:, "q_spread2"] = 100 * (askP2 - bidP2)/m1
+    df.loc[:, "q_spread1_d"] = 100 * (askP1 - bidP1)
+    df.loc[:, "q_spread2_d"] = 100 * (askP2 - bidP2)
     df.loc[:, "ratio_askP"] = askP2/askP1
     df.loc[:, "ratio_bidP"] = bidP1/bidP2
+
+    return
+
+def gen_trade_var(df, group_cols = ["stock_id", "time_id"]):
+    """
+    
+    """
+    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].transform(lambda x: (x.shift(-1).fillna(600) - x))
+    df.loc[:, "trade_size"] = df["size"]/df["order_count"]
 
     return
 
@@ -199,7 +210,11 @@ def gen_segments(df, n=3, seg_type="obs",
         return gen_segment_weights(df, n, seg_type, new_group_cols)
         
 def gen_distribution_stats(base, df, 
-                            varnames=[], 
+                            varnames=["ln_depth_total", "ratio_depth1_2",
+                                    "ratio_a_bdepth1", "ratio_a_bdepth2",
+                                    "q_spread1", "q_spread2",
+                                    "q_spread1_d", "q_spread2_d",
+                                    "ratio_askP", "ratio_bidP"],
                             dist_unit=["stock_id"],
                             percentile_spec=[1, 99]):
     """
@@ -218,9 +233,9 @@ def gen_distribution_stats(base, df,
         base = base.join(std_dev, on=dist_unit)
 
         for i in percentile_spec:
-            pct_temp = df.groupby(dist_unit, observed=True)[v].apply(lambda x: np.percentile(x.dropna(),i)).rename("pct_%d"%i)
+            pct_temp = df.groupby(dist_unit, observed=True)[v].apply(lambda x: np.percentile(x.dropna(),i)).rename(v + "pct_%d"%i)
             base = base.join(pct_temp, on=dist_unit)
 
-        return base
+    return base
 
 

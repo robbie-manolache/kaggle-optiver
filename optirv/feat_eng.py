@@ -166,8 +166,8 @@ def compute_BPV_retquad(base, df, weights=None,
     return base
 
 def gen_weighted_var(base, df, equal_weight = False, 
-                    var_names = ["slope_ask", "slope_bid", "quoted_spread1",
-                                "quoted_spread2", "ratio_askP", "ratio_bidP"], 
+                    var_names = ["slope_ask", "slope_bid", "q_spread1",
+                                "q_spread2", "ratio_askP", "ratio_bidP"], 
                      group_cols = ["stock_id", "time_id"], 
                      weight_var = "time_length", weight_suffix = "_tw"):
     """
@@ -190,9 +190,9 @@ def gen_weighted_var(base, df, equal_weight = False,
     return base
 
 def gen_last_obs(base, df,
-                var_names = ["ln_depth_total", "ratio_a_bdepth2",
-                            "ratio_depth1_2", "ratio_a_bdepth1",
-                            "quoted_spread1", "quoted_spread2",
+                var_names = ["ln_depth_total", "ratio_depth1_2",
+                            "ratio_a_bdepth1","ratio_a_bdepth2",
+                            "q_spread1", "q_spread2",
                             "ratio_askP", "ratio_bidP"],
                 group_cols = ["stock_id", "time_id"]):
     """
@@ -207,6 +207,24 @@ def gen_last_obs(base, df,
     
     return base
 
+def gen_trade_stats(base, df,
+                    var_names = ["trade_size", "time_length"],
+                    group_cols = ["stock_id", "time_id"]):
+    """
+    
+    """
+    for v in var_names:
+        median_var_name = v + "_med"
+        max_var_name = v + "_max"
+        median_var = df.groupby(group_cols, observed = True)[v].\
+                    apply(lambda x: x.median()).rename(median_var_name)
+        max_var = df.groupby(group_cols, observed = True)[v].\
+                    apply(lambda x: x.max()).rename(max_var_name)
+        
+        base = base.join(median_var, on = group_cols)
+        base = base.join(max_var, on = group_cols)
+    
+    return base
 
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
