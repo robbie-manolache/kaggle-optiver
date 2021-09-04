@@ -1,6 +1,8 @@
 
+# run from shell: python setup.py bdist_wheel #
+
 from setuptools import setup
 
 setup(name="optirv", 
-      version="0.2", 
+      version="0.4", 
       packages=['optirv', 'optirv/helpers', 'optirv/lazykaggler'])
