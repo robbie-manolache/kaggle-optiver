@@ -226,6 +226,17 @@ def gen_trade_stats(base, df,
     
     return base
 
+def gen_var_relto_dist(base, dist_df,
+                        group_col = ["stock_id", "time_id"],
+                        var_names = []):
+    """
+    
+    """
+    for v in var_names:
+        pass #TBC
+    return base    
+
+
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
                       pipeline=[], output_dir=None):
