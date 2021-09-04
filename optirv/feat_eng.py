@@ -49,6 +49,7 @@ def add_real_vol_cols(base, df, weights=None,
                       interval_col="segment",
                       intervals=None):
     """
+    df = book_df
     weights:    pandas.DataFrame containing a "weight" column and the same
                 group_cols and interval_col as df. For a given interval, the 
                 realized volatility will be divided by the sum of weights to 
@@ -99,6 +100,7 @@ def compute_BPV_retquad(base, df, weights=None,
                         interval_col="segment",
                         intervals=None):
     """
+    df = book_df
     weights:    pandas.DataFrame containing a "weight" column and the same
                 group_cols and interval_col as df. For a given interval, the 
                 realized volatility will be divided by the sum of weights to 
@@ -166,17 +168,21 @@ def compute_BPV_retquad(base, df, weights=None,
     return base
 
 def gen_weighted_var(base, df, equal_weight = False, 
-                    var_names = ["slope_ask", "slope_bid", "q_spread1",
+                     var_names = ["slope_ask", "slope_bid", "q_spread1",
                                 "q_spread2", "ratio_askP", "ratio_bidP"], 
                      group_cols = ["stock_id", "time_id"], 
-                     weight_var = "time_length", weight_suffix = "_tw"):
+                     weight_var = "time_length"):
     """
+    df = book_df
     generating aggregated variable weighted by time_length
+    also run this for base, df = merged book and trade, equal_weight = True,
+                      var_names = ["ratio_size_depth1", "ratio_size_depth2"]
+                   
     """
 
     for v in var_names:
         if equal_weight == False:
-            weighted_var_name = v + weight_suffix
+            weighted_var_name = v + "tw"
             weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
                 apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
         
@@ -196,6 +202,7 @@ def gen_last_obs(base, df, n_rows=1,
                             "ratio_askP", "ratio_bidP"],
                 group_cols = ["stock_id", "time_id"]):
     """
+    df = book_df
     generating the last observations for each stock_id-time_id
     """
     for v in var_names:
@@ -220,7 +227,7 @@ def gen_trade_stats(base, df,
                     var_names = ["trade_size", "time_length"],
                     group_cols = ["stock_id", "time_id"]):
     """
-    
+    df = trade_df
     """
     for v in var_names:
         median_var_name = v + "_med"
