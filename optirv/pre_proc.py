@@ -123,7 +123,8 @@ def gen_ob_var(df):
 
     return
 
-def compute_lnret(df, varnames=["WAP1"], group_cols=["stock_id", "time_id"],
+def compute_lnret(df, varnames=["WAP1", "WAP2"], 
+                  group_cols=["stock_id", "time_id"],
                   power=[1], absolute=[]):
     """
     power:      list of powers used to further transform log returns 
@@ -169,49 +170,55 @@ def gen_trade_var(df, group_cols = ["stock_id", "time_id"]):
 
     return
 
-def gen_segment_weights(df, n=3, seg_type="obs", 
-                        group_cols=["stock_id", "time_id", "segment"]):
+def gen_segment_weights(df, n=3, group_cols=["stock_id", "time_id", "segment"]):
     
     seg_df = df[group_cols].drop_duplicates()
     seg_grps = df.groupby(group_cols, observed=True)
-    
-    if seg_type == "obs":
-        seg_df.loc[:, "end_sec"] = seg_grps["sec"].transform("max")
-        seg_df.loc[seg_df["segment"]==(n-1), "end_sec"] = 599
-        seg_df.loc[:, "start_sec"] = seg_df.groupby(
-            group_cols[:-1])["end_sec"].shift(1).fillna(-1)
-        seg_df.loc[:, "weight"] = (seg_df["end_sec"] - seg_df["start_sec"]) / 600
-        
-    elif seg_type == "sec":
-        seg_df.loc[:, "N_seg"] = seg_grps["sec"].transform("count")
-        seg_df.loc[:, "N_grp"] = seg_df.groupby(group_cols[:-1]).transform("sum")
-        seg_df.loc[:, "weight"] = seg_df["N_seg"] / seg_df["N_grp"]
-        
+
+    seg_df.loc[:, "end_sec"] = seg_grps["sec"].transform("max")
+    seg_df.loc[seg_df["segment"]==(n-1), "end_sec"] = 599
+    seg_df.loc[:, "start_sec"] = seg_df.groupby(
+        group_cols[:-1])["end_sec"].shift(1).fillna(-1)
+    seg_df.loc[:, "weight"] = (seg_df["end_sec"] - seg_df["start_sec"]) / 600
+          
     return seg_df[group_cols + ["weight"]]
         
-def gen_segments(df, n=3, seg_type="obs", 
-                 group_cols=["stock_id", "time_id"],
-                 return_segment_weights=True):
+def gen_segments_by_obs(df, n=3, group_cols=["stock_id", "time_id"],
+                        return_segment_weights=True):
     """
-    seg_type: "obs" (observation-based) or "sec" (time-based)
     """
-    if seg_type == "obs":
-        grps = df.groupby(group_cols, observed=True)
-        pctile = grps.cumcount() / grps["sec"].transform("count")
-        df.loc[:, "segment"] = pd.cut(pctile, 
-                                      bins=np.linspace(0, 1, n+1), 
-                                      labels=range(n), 
-                                      include_lowest=True)
-    elif seg_type == "sec":
-        df.loc[:, "segment"] = pd.cut(df["sec"], 
-                                      bins=np.linspace(0, 600, n+1), 
-                                      labels=range(n), 
-                                      include_lowest=True)
-        
+    grps = df.groupby(group_cols, observed=True)
+    pctile = grps.cumcount() / grps["sec"].transform("count")
+    df.loc[:, "segment"] = pd.cut(pctile, 
+                                    bins=np.linspace(0, 1, n+1), 
+                                    labels=range(n), 
+                                    include_lowest=True)        
     if return_segment_weights:
         new_group_cols = group_cols + ["segment"]
-        return gen_segment_weights(df, n, seg_type, new_group_cols)
-        
+        return gen_segment_weights(df, n, new_group_cols)
+
+def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
+                         int_cols=["sec", "bid_size1", "ask_size1",
+                                          "bid_size2", "ask_size2"],
+                         return_full=True):
+    """
+    """
+    df.loc[:, "segment"] = pd.cut(df["sec"], 
+                                  bins=np.linspace(0, 600, n+1), 
+                                  labels=range(n), 
+                                  include_lowest=True)   
+    if return_full:
+        full_df = df[group_cols].drop_duplicates()
+        full_df = full_df.merge(pd.DataFrame(range(n), columns=["segment"]), 
+                                how="cross")
+        new_group_cols = group_cols + ["segment"]
+        full_df = full_df.merge(df, on=new_group_cols, how="left")
+        full_df = full_df.fillna(method="ffill")
+        for ic in int_cols:
+            if ic in full_df.columns.tolist():
+                full_df.loc[:, ic] = full_df[ic].astype(int)
+        return full_df
+             
 def gen_distribution_stats(dist_base, df, 
                             var_names=["ln_depth_total_last", "ratio_depth1_2_last",
                                     "ratio_a_bdepth1_last", "ratio_a_bdepth2_last",

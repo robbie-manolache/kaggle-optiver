@@ -28,17 +28,25 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
     
     # function mapping dictionary
     func_map = {
+        
+        # Pre-processing
         "merge_book_trade": pp.merge_book_trade,
+        "gen_merged_book_trade_var": pp.gen_merged_book_trade_var,
         "gen_trade_var": pp.gen_trade_var,
         "gen_ob_slope": pp.gen_ob_slope,
         "gen_ob_var": pp.gen_ob_var,
         "compute_WAP": pp.compute_WAP,
         "compute_lnret": pp.compute_lnret,
-        "gen_segments": pp.gen_segments,
+        "gen_segments_by_obs": pp.gen_segments_by_obs,
+        "gen_segments_by_time": pp.gen_segments_by_time,
+        
+        # Feature engineering
         "add_real_vol_cols": fe.add_real_vol_cols,
         "compute_BPV_retquad": fe.compute_BPV_retquad,
         "gen_weighted_var": fe.gen_weighted_var,
+        "gen_trade_stats": fe.gen_trade_stats,
         "gen_last_obs": fe.gen_last_obs
+        
     }
     
     # set up DataLoader and empty list to collect processed data
