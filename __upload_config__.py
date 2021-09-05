@@ -18,5 +18,5 @@ else:
 
 # upload to Kaggle datasets
 upload_dataset(dst_dir,
-               new_version=False,
-               version_notes="")
+               new_version=True,
+               version_notes="Upload latest feat eng config")

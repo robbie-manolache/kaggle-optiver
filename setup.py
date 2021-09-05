@@ -4,5 +4,5 @@
 from setuptools import setup
 
 setup(name="optirv", 
-      version="0.4", 
+      version="0.5", 
       packages=['optirv', 'optirv/helpers', 'optirv/lazykaggler'])
