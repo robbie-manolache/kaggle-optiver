@@ -43,6 +43,7 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
 
 def gen_merged_book_trade_var(df):
     """
+    df: merged book and trade
     generate variables from merged data between trade and book data
     """
     bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
@@ -65,6 +66,7 @@ def gen_merged_book_trade_var(df):
 
 def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     """
+    df: book_df
     prepping OB data
     creating time length between obs
     to do: create WAP based on both levels
@@ -84,6 +86,7 @@ def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
 
 def gen_ob_slope(df):
     """
+    df: book_df
     generating the slope from the LOB
     """
 
@@ -99,7 +102,7 @@ def gen_ob_slope(df):
 
 def gen_ob_var(df):  
     """
-    
+    df: book_df
     """
 
     cols = ["bid_price", "ask_price", "bid_size", "ask_size", "midquote"]
@@ -117,15 +120,6 @@ def gen_ob_var(df):
     df.loc[:, "q_spread2_d"] = 100 * (askP2 - bidP2)
     df.loc[:, "ratio_askP"] = askP2/askP1
     df.loc[:, "ratio_bidP"] = bidP1/bidP2
-
-    return
-
-def gen_trade_var(df, group_cols = ["stock_id", "time_id"]):
-    """
-    
-    """
-    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].transform(lambda x: (x.shift(-1).fillna(600) - x))
-    df.loc[:, "trade_size"] = df["size"]/df["order_count"]
 
     return
 
@@ -164,6 +158,15 @@ def compute_lnret(df, varnames=["WAP1"], group_cols=["stock_id", "time_id"],
                 lnret = np.abs(lnret ** p)
                 df.loc[:, name] = lnret     
          
+    return
+
+def gen_trade_var(df, group_cols = ["stock_id", "time_id"]):
+    """
+    df: trade_df
+    """
+    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].transform(lambda x: (x.shift(-1).fillna(600) - x))
+    df.loc[:, "trade_size"] = df["size"]/df["order_count"]
+
     return
 
 def gen_segment_weights(df, n=3, seg_type="obs", 
@@ -209,33 +212,35 @@ def gen_segments(df, n=3, seg_type="obs",
         new_group_cols = group_cols + ["segment"]
         return gen_segment_weights(df, n, seg_type, new_group_cols)
         
-def gen_distribution_stats(base, df, 
-                            varnames=["ln_depth_total", "ratio_depth1_2",
-                                    "ratio_a_bdepth1", "ratio_a_bdepth2",
-                                    "q_spread1", "q_spread2",
-                                    "q_spread1_d", "q_spread2_d",
-                                    "ratio_askP", "ratio_bidP"],
+def gen_distribution_stats(dist_base, df, 
+                            var_names=["ln_depth_total_last", "ratio_depth1_2_last",
+                                    "ratio_a_bdepth1_last", "ratio_a_bdepth2_last",
+                                    "q_spread1_last", "q_spread2_last",
+                                    "ratio_askP_last", "ratio_bidP_last",
+                                    "trade_size_med", "time_length_med",
+                                    "ratio_size_depth1_ew", "ratio_size_depth2_ew"],
                             dist_unit=["stock_id"],
-                            percentile_spec=[1, 99]):
+                            percentile_spec=[50]):
     """
+    df = aggregate at stock_id-time_id
     returning distribution characteristics of a variable, default to by stock
 
     """
     
-    for v in varnames:
+    for v in var_names:
         mean_name = v + "_mean"
         std_dev_name = v + "_std"
         
         mean = df.groupby(dist_unit, observed=True)[v].apply(lambda x: x.mean()).rename(mean_name)
         std_dev = df.groupby(dist_unit, observed=True)[v].apply(lambda x: x.std()).rename(std_dev_name)
 
-        base = base.join(mean, on=dist_unit)
-        base = base.join(std_dev, on=dist_unit)
+        dist_base = dist_base.join(mean, on=dist_unit)
+        dist_base = dist_base.join(std_dev, on=dist_unit)
 
         for i in percentile_spec:
             pct_temp = df.groupby(dist_unit, observed=True)[v].apply(lambda x: np.percentile(x.dropna(),i)).rename(v + "pct_%d"%i)
-            base = base.join(pct_temp, on=dist_unit)
+            dist_base = dist_base.join(pct_temp, on=dist_unit)
 
-    return base
+    return dist_base
 
 

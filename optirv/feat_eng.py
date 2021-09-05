@@ -168,7 +168,7 @@ def gen_weighted_var(base, df, equal_weight = False,
 
     for v in var_names:
         if equal_weight == False:
-            weighted_var_name = v + "tw"
+            weighted_var_name = v + "_tw"
             weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
                 apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
         
@@ -229,12 +229,26 @@ def gen_trade_stats(base, df,
     return base
 
 def gen_var_relto_dist(base, dist_df,
-                        group_col = ["stock_id", "time_id"],
-                        var_names = []):
+                       dist_unit = ["stock_id"],
+                       dist_percentile = [90],
+                       var_names = ["ln_depth_total_last", "ratio_depth1_2_last",
+                                    "ratio_a_bdepth1_last", "ratio_a_bdepth2_last",
+                                    "q_spread1_last", "q_spread2_last",
+                                    "ratio_askP_last", "ratio_bidP_last",
+                                    "trade_size_med", "time_length_med",
+                                    "ratio_size_depth1_ew", "ratio_size_depth2_ew"]):
     """
-    
+    dist_percentile has to be created first from pp.gen_distribution_stats
     """
     for v in var_names:
-        pass #TBC
+        for i in dist_percentile:
+            dist_var_name = v + "pct_%d"%i
+            new_var_name = v + "_relt" + "pct_%d"%i
+
+            dist_var = dist_df[dist_unit + [dist_var_name]]
+            base = base.merge(dist_var, on = dist_unit)
+            base.loc[:, new_var_name] = base[v]/base[dist_var_name]
+            base = base.drop(dist_var_name, axis = 1)
+
     return base    
         
