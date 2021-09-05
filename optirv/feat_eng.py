@@ -211,15 +211,18 @@ def gen_last_obs(base, df, n_rows=1,
 
 def gen_trade_stats(base, df,
                     var_names = ["trade_size", "time_length"],
+                    fill_na = [0, 600],
                     group_cols = ["stock_id", "time_id"]):
     """
     df = trade_df
+    NOTE: fill_na needs to be same length as var_names and each numeric entry will 
+          be used to fill NA values for the corresponding variable
     """
     sum_order_count = df.groupby(group_cols, observed = True)["order_count"].\
                     apply(lambda x: x.sum()).rename("total_trades")
-    base = base.join(sum_order_count, on = group_cols)
+    base = base.join(sum_order_count, on = group_cols, how="left").fillna(0)
 
-    for v in var_names:
+    for v, f in zip(var_names, fill_na):
         median_var_name = v + "_med"
         max_var_name = v + "_max"
         median_var = df.groupby(group_cols, observed = True)[v].\
@@ -227,8 +230,8 @@ def gen_trade_stats(base, df,
         max_var = df.groupby(group_cols, observed = True)[v].\
                     apply(lambda x: x.max()).rename(max_var_name)
         
-        base = base.join(median_var, on = group_cols)
-        base = base.join(max_var, on = group_cols)
+        base = base.join(median_var, on = group_cols, how="left").fillna(f)
+        base = base.join(max_var, on = group_cols, how="left").fillna(f)
     
     return base
 
