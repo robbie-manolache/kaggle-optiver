@@ -215,6 +215,10 @@ def gen_trade_stats(base, df,
     """
     df = trade_df
     """
+    sum_order_count = df.groupby(group_cols, observed = True)["order_count"].\
+                    apply(lambda x: x.sum()).rename("total_trades")
+    base = base.join(sum_order_count, on = group_cols)
+
     for v in var_names:
         median_var_name = v + "_med"
         max_var_name = v + "_max"
@@ -238,6 +242,7 @@ def gen_var_relto_dist(base, dist_df,
                                     "trade_size_med", "time_length_med",
                                     "ratio_size_depth1_ew", "ratio_size_depth2_ew"]):
     """
+    THIS IS NOT NEEDED
     dist_percentile has to be created first from pp.gen_distribution_stats
     """
     for v in var_names:
