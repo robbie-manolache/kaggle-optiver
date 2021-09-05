@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from optirv.feat_eng import __get_func__
+from optirv.data_pipes import __get_func__
 import optirv.feat_agg as agg
 
 def __ratio__(df, v, d, n, log, epsi):
