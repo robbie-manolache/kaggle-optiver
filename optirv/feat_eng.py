@@ -118,33 +118,50 @@ def compute_BPV_retquad(base, df, weights=None,
     for v in varnames:
 
         abs_var = v + "_abs"
-
+        keep_cols = group_cols + ["sec", v, abs_var]
+        
         for i in intervals:
             
             # derive BPV var name
             if skip_int_filter:
-                q_df = df
                 BPV_name = v + "_BPV"
                 BPV_jump = v + "_BPV" + "_jump"
                 RQ_name = v + "_RQ"
                 rvol_name = v + "_vol_all"
+                q_df = df[keep_cols].copy()
             else:
-                q_df = df.query("@i[0] <= %s <= @i[1]"%interval_col)
                 BPV_name = v + "_BPV_%d_%d"%(i[0], i[1])
                 BPV_jump = v + "_BPV_%d_%d"%(i[0], i[1]) + "_jump"
                 RQ_name = v + "_RQ_%d_%d"%(i[0], i[1])
                 rvol_name = v + "_vol_all_%d_%d"%(i[0], i[1]) 
-
+                q_df = df[keep_cols].query("@i[0] <= %s <= @i[1]"%interval_col).copy()
+                
             # check rvol in base
             if rvol_name not in base.columns:
                 print("%d needs to be computed"%rvol_name)
                 return
-
+            
+            # get the last second by stock and time id
+            q_df.loc[:, "max_sec"] = q_df.groupby(["stock_id", "time_id"], 
+                                                  observed=True)["sec"].transform("max")
+            # shift the absolute return var back 1
+            q_df.loc[:, abs_var+"_f1"] = q_df[abs_var].shift(-1)
+            
+            # NA any last obs in a stock-time segment as it came from another segment
+            q_df.loc[q_df["sec"]==q_df["max_sec"], abs_var+"_f1"] = np.nan
+            
+            # Finally, compute the product between shifted and absolute returns
+            q_df.loc[:, abs_var+"_cov"] = q_df[abs_var] * q_df[abs_var+"_f1"]
+            
+            # Compute quad returns
+            q_df.loc[:, v+"_quad"] = (q_df[v] ** 4)
+            
             # compute BPV and ret_quad for each sub-segment of a time_id
-            BPV = q_df.groupby(group_cols, observed=True)[abs_var].apply(
-                pre_compute_BPV).rename(BPV_name) * (np.pi/2)
-            RQ = q_df.groupby(group_cols, observed=True)[v].apply(
-                pre_retquad).rename(RQ_name)
+            BPV = q_df.groupby(group_cols, observed=True)[abs_var+"_cov"].sum(
+                ).rename(BPV_name) * (np.pi/2)
+            RQ = q_df.groupby(group_cols, observed=True)[v+"_quad"].sum()
+            N_grp = q_df.groupby(group_cols, observed=True)[v+"_quad"].count()
+            RQ = np.sqrt(RQ * N_grp / 3).rename(RQ_name)
 
             # if weights provided, make sure volatility is on the same time scale
             if weights is not None:
