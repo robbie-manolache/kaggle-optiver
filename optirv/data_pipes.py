@@ -20,6 +20,11 @@ def __get_func__(func_name, func_map):
     else:
         return func_name      
 
+def gen_seg_base(df, key_cols=["stock_id", "time_id", "segment"]):
+    """
+    """
+    return df[key_cols].drop_duplicates()
+
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
                       pipeline=[], output_dir=None):
@@ -39,6 +44,9 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         "compute_lnret": pp.compute_lnret,
         "gen_segments_by_obs": pp.gen_segments_by_obs,
         "gen_segments_by_time": pp.gen_segments_by_time,
+        
+        # Intermediary
+        "gen_seg_base": gen_seg_base,
         
         # Feature engineering
         "add_real_vol_cols": fe.add_real_vol_cols,

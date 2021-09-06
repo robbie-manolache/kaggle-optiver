@@ -125,7 +125,7 @@ def gen_ob_var(df):
 
 def compute_lnret(df, varnames=["WAP1", "WAP2"], 
                   group_cols=["stock_id", "time_id"],
-                  power=[1], absolute=[]):
+                  power=[1], absolute=[1]):
     """
     power:      list of powers used to further transform log returns 
     absolute:   list of powers for which to take absolute value 
