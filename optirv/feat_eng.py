@@ -6,17 +6,6 @@
 import numpy as np
 import pandas as pd
 
-def pre_retquad(ln_ret_series):
-    """
-    calculate returns to the power of 4
-    """
-    return np.sqrt(np.sum((ln_ret_series ** 4)) * len(ln_ret_series)/3)
-
-def pre_compute_BPV(ln_ret_series):
-    """
-    """
-    return np.sum(ln_ret_series * ln_ret_series.shift(-1))
-
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP1_lnret", "WAP2_lnret"], 
                       group_cols=["stock_id", "time_id"],

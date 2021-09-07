@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from optirv.feat_eng import realized_vol
 
 def plot_returns_by_time(base, book, stock_id, 
                          n_times=8, time_id=[],
@@ -31,7 +30,7 @@ def plot_returns_by_time(base, book, stock_id,
     # add realized vol
     plot_df.loc[:, "rvol"] = plot_df.groupby(
         "time_id")[return_cols[base_rvol_on]].transform(
-            lambda x: realized_vol(x, square_root=True))
+            lambda x: np.sqrt(np.sum(x ** 2)))
     plot_df = plot_df.merge(base.query("stock_id == @stock_id"), on="time_id")
     if include_rvol:
         plot_cols = return_cols + ["rvol", "target"]    
