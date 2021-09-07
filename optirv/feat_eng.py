@@ -9,7 +9,7 @@ import pandas as pd
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP1_lnret", "WAP2_lnret"], 
                       group_cols=["stock_id", "time_id"],
-                      subsets=["all"],
+                      subsets=["all", "pos", "neg"],
                       interval_col="segment",
                       intervals=None):
     """
