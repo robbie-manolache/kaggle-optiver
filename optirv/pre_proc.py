@@ -2,6 +2,7 @@
 # Module for pre-processing functions
 
 import numpy as np
+from numpy.core.numeric import full
 import pandas as pd
 
 def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
@@ -165,7 +166,8 @@ def gen_trade_var(df, group_cols = ["stock_id", "time_id"]):
     """
     df: trade_df
     """
-    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].transform(lambda x: (x.shift(-1).fillna(600) - x))
+    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].\
+        transform(lambda x: (x.shift(-1).fillna(600) - x))
     df.loc[:, "trade_size"] = df["size"]/df["order_count"]
 
     return
@@ -200,7 +202,7 @@ def gen_segments_by_obs(df, n=3, group_cols=["stock_id", "time_id"],
 def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
                          int_cols=["sec", "bid_size1", "ask_size1",
                                           "bid_size2", "ask_size2"],
-                         return_full=True):
+                         return_full=True, fill_na="book"):
     """
     """
     df.loc[:, "segment"] = pd.cut(df["sec"], 
@@ -208,15 +210,28 @@ def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
                                   labels=range(n), 
                                   include_lowest=True)   
     if return_full:
+        
         full_df = df[group_cols].drop_duplicates()
         full_df = full_df.merge(pd.DataFrame(range(n), columns=["segment"]), 
                                 how="cross")
         new_group_cols = group_cols + ["segment"]
         full_df = full_df.merge(df, on=new_group_cols, how="left")
-        full_df = full_df.fillna(method="ffill")
+        
+        if fill_na == "book":
+            full_df = full_df.fillna(method="ffill")
+        elif fill_na == "trade":
+            nas = full_df["sec"].isna()
+            full_df.loc[nas, "sec"] = 600 * (full_df.loc[nas, "segment"]+1) / n
+            full_df.loc[:, "price"] = full_df.groupby(["stock_id", "time_id"]
+                                                      )["price"].ffill().bfill()
+            full_df = full_df.fillna(0)
+        else:
+            pass
+            
         for ic in int_cols:
             if ic in full_df.columns.tolist():
                 full_df.loc[:, ic] = full_df[ic].astype(int)
+                
         return full_df
              
 def gen_distribution_stats(dist_base, df, 
