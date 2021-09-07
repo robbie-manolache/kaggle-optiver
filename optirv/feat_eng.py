@@ -178,8 +178,10 @@ def compute_BPV_retquad(base, df, weights=None,
     return base
 
 def gen_weighted_var(base, df, equal_weight = False, 
-                     var_names = ["slope_ask", "slope_bid", "q_spread1",
-                                "q_spread2", "ratio_askP", "ratio_bidP"], 
+                     var_names = ["slope_ask", "slope_bid", 
+                                  "q_spread1", "q_spread2", 
+                                  "ratio_askP", "ratio_bidP",
+                                  "depth_1", "depth_2", "depth_total"], 
                      group_cols = ["stock_id", "time_id"], 
                      weight_var = "time_length"):
     """
@@ -206,8 +208,8 @@ def gen_weighted_var(base, df, equal_weight = False,
     return base
 
 def gen_last_obs(base, df, n_rows=1,
-                var_names = ["ln_depth_total", "ratio_depth1_2",
-                            "ratio_a_bdepth1","ratio_a_bdepth2",
+                var_names = ["depth_1", "depth_2", "depth_total", 
+                             "ratio_depth1_2", "ratio_a_bdepth1","ratio_a_bdepth2",
                             "q_spread1", "q_spread2",
                             "ratio_askP", "ratio_bidP"],
                 group_cols = ["stock_id", "time_id"]):
