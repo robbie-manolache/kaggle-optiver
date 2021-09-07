@@ -118,7 +118,9 @@ def gen_ob_var(df):
     bidP1, askP1, bidQ1, askQ1, m1 = [df[c+"1"] for c in cols]
     bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
 
-    df.loc[:, "ln_depth_total"] = np.log(askQ1*askP1 + bidQ1*bidP1 + askQ2*askP2 + bidQ2*bidP2)
+    df.loc[:, "depth_1"] = askQ1*askP1 + bidQ1*bidP1
+    df.loc[:, "depth_2"] = askQ2*askP2 + bidQ2*bidP2
+    df.loc[:, "depth_total"] =  df["depth_1"] + df["depth_2"]
     df.loc[:, "ratio_depth1_2"] = (askQ1 + bidQ1)/(askQ2 + bidQ2)
     df.loc[:, "ratio_a_bdepth1"] = askQ1/bidQ1
     df.loc[:, "ratio_a_bdepth2"] = (askQ1 + askQ2)/(bidQ1 + bidQ2)

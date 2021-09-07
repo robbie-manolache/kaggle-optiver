@@ -199,11 +199,16 @@ def gen_weighted_var(base, df, equal_weight = False,
                     median().rename("ob_time_length_med")
     base = base.join(median_ob_time, on = group_cols, how="left").fillna(600)
     
+    if equal_weight == False:
+        df.loc[:, "weight_frac"] = df[weight_var] / df.groupby(
+            group_cols, observed=True)[weight_var].transform("sum")
+    
     for v in var_names:
         if equal_weight == False:
             weighted_var_name = v + "_tw"
-            weighted_var = df.groupby(group_cols, observed = True)[[v, weight_var]].\
-                apply(lambda x: np.sum(x[v] * x[weight_var])/np.sum(x[weight_var])).rename(weighted_var_name)
+            df.loc[:, "temp_var"] = df["weight_frac"] * df[v]
+            weighted_var = df.groupby(group_cols, observed = True)["temp_var"].\
+                sum().rename(weighted_var_name)
         
         else:
             weighted_var_name = v + "_ew"
@@ -212,6 +217,9 @@ def gen_weighted_var(base, df, equal_weight = False,
         
         base = base.join(weighted_var, on = group_cols)
 
+    if equal_weight == False:
+        df.drop(columns=["weight_frac", "temp_var"], inplace=True)
+    
     return base
 
 def gen_last_obs(base, df, n_rows=1,
