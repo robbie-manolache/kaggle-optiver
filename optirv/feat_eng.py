@@ -177,7 +177,8 @@ def compute_BPV_retquad(base, df, weights=None,
         
     return base
 
-def gen_weighted_var(base, df, equal_weight = False, 
+def gen_weighted_var(base, df, equal_weight = False,
+                    first_time_book = True,
                      var_names = ["slope_ask", "slope_bid", 
                                   "q_spread1", "q_spread2", 
                                   "ratio_askP", "ratio_bidP",
@@ -187,17 +188,21 @@ def gen_weighted_var(base, df, equal_weight = False,
     """
     df = book_df
     generating aggregated variable weighted by time_length
-    also run this for base, df = merged book and trade, equal_weight = True,
-                      var_names = ["ratio_size_depth1", "ratio_size_depth2"]
+    also run this for base, df = merged book and trade, 
+                            equal_weight = True,
+                            first_time_book = False,
+                            var_names = ["ratio_size_depth1", "ratio_size_depth2"]
                    
     """
-    sum_ob_change = df.groupby(group_cols, observed = True)["sec"].\
-                    count().rename("no_ob_changes")
-    base = base.join(sum_ob_change, on = group_cols, how="left").fillna(0)
+    if first_time_book:
 
-    median_ob_time = df.groupby(group_cols, observed = True)["time_length"].\
-                    median().rename("ob_time_length_med")
-    base = base.join(median_ob_time, on = group_cols, how="left").fillna(600)
+        sum_ob_change = df.groupby(group_cols, observed = True)["sec"].\
+                        count().rename("no_ob_changes")
+        base = base.join(sum_ob_change, on = group_cols, how="left").fillna(0)
+
+        median_ob_time = df.groupby(group_cols, observed = True)["time_length"].\
+                        median().rename("ob_time_length_med")
+        base = base.join(median_ob_time, on = group_cols, how="left").fillna(600)
     
     if equal_weight == False:
         df.loc[:, "weight_frac"] = df[weight_var] / df.groupby(
