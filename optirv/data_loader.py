@@ -13,7 +13,8 @@ def __read_pq_data__(path, stocks):
     """
     """
     pq_con = pq.ParquetDataset(path, filters=[("stock_id", "in", stocks)])
-    return pq_con.read().to_pandas().rename(columns={"seconds_in_bucket": "sec"})
+    return pq_con.read().to_pandas().rename(columns={"seconds_in_bucket": "sec"}
+                                            ).astype({'stock_id': 'int64'})
 
 class DataLoader:
     

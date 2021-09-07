@@ -218,7 +218,7 @@ def gen_weighted_var(base, df, equal_weight = False,
         else:
             weighted_var_name = v + "_ew"
             weighted_var = df.groupby(group_cols, observed = True)[v].\
-                mean().rename(weighted_var_name)
+                mean().rename(weighted_var_name).fillna(0)
         
         base = base.join(weighted_var, on = group_cols)
 
