@@ -19,6 +19,8 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
         df = frame_df.merge(book_df, on=merge_cols, how="left")
         if impute_book:
             df = df.fillna(method="ffill")
+            if "segment" in df.columns.tolist():
+                df.loc[:, "segment"] = df["segment"].astype(int)
     else:
         df = book_df.copy()
         
@@ -81,7 +83,13 @@ def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     df.loc[:, "midquote1"] = (bidP1 + askP1)/2
     df.loc[:, "midquote2"] = (bidP2 + askP2)/2
 
-    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].transform(lambda x: (x.shift(-1).fillna(600) - x))
+    df.loc[:, "max_sec"] = df.groupby(["stock_id", "time_id"], 
+                                      observed=True)["sec"].transform("max")
+    df.loc[:, "sec_f1"] = df["sec"].shift(-1)
+    df.loc[df["sec"]==df["max_sec"], "sec_f1"] = 600
+    
+    df.loc[:, "time_length"] = df["sec_f1"] - df["sec"]
+    df.drop(columns=["max_sec", "sec_f1"], inplace=True)
 
     return
 
@@ -145,29 +153,33 @@ def compute_lnret(df, varnames=["WAP1", "WAP2"],
             elif p > 2:
                 name += "_pwr%d"%p
             
-            # compute log returns    
-            if len(group_cols) > 0:
-                lnret = df.groupby(group_cols)[v].transform(
-                    lambda x: np.log(x / x.shift(1)))
-            else:
-                lnret = np.log((df[v]/df[v].shift(1)))
-            
+            # compute log returns  
+            lnret = np.log((df[v]/df[v].shift(1)))  
+
             if p in power:
                 df.loc[:, name] = lnret ** p
+                df.loc[df["sec"]==0, name] = np.nan
                 
             if p in absolute:
                 name += "_abs"
                 lnret = np.abs(lnret ** p)
                 df.loc[:, name] = lnret     
-         
+                df.loc[df["sec"]==0, name] = np.nan
+                
     return
 
-def gen_trade_var(df, group_cols = ["stock_id", "time_id"]):
+def gen_trade_var(df, group_cols=["stock_id", "time_id"]):
     """
     df: trade_df
     """
-    df.loc[:, "time_length"] = df.groupby(group_cols, observed = True)["sec"].\
-        transform(lambda x: (x.shift(-1).fillna(600) - x))
+    
+    df.loc[:, "max_sec"] = df.groupby(["stock_id", "time_id"], 
+                                      observed=True)["sec"].transform("max")
+    df.loc[:, "sec_f1"] = df["sec"].shift(-1)
+    df.loc[df["sec"]==df["max_sec"], "sec_f1"] = 600
+    
+    df.loc[:, "time_length"] = df["sec_f1"] - df["sec"]
+    df.drop(columns=["max_sec", "sec_f1"], inplace=True)
     df.loc[:, "trade_size"] = df["size"]/df["order_count"]
 
     return
@@ -232,7 +244,7 @@ def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
             if ic in full_df.columns.tolist():
                 full_df.loc[:, ic] = full_df[ic].astype(int)
                 
-        return full_df
+        return full_df    
              
 def gen_distribution_stats(dist_base, df, 
                             var_names=["ln_depth_total_last", "ratio_depth1_2_last",
