@@ -36,3 +36,4 @@ time_length_max,0,0,0
 ratio_size_depth1_ew,1,1,0
 ratio_size_depth2_ew,1,0,0
 total_trades,1,1,0
+total_trade_vol,1,1,1

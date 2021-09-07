@@ -263,6 +263,10 @@ def gen_trade_stats(base, df,
                     sum().rename("total_trades")
     base = base.join(sum_order_count, on = group_cols, how="left").fillna(0)
 
+    sum_quantity = df.groupby(group_cols, observed = True)["size"].\
+                    sum().rename("total_trade_vol")
+    base = base.join(sum_quantity, on = group_cols, how="left").fillna(0)
+
     for v, f in zip(var_names, fill_na):
         median_var_name = v + "_med"
         max_var_name = v + "_max"
