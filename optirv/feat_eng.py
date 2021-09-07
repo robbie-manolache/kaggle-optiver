@@ -245,16 +245,16 @@ def gen_trade_stats(base, df,
           be used to fill NA values for the corresponding variable
     """
     sum_order_count = df.groupby(group_cols, observed = True)["order_count"].\
-                    apply(lambda x: x.sum()).rename("total_trades")
+                    sum().rename("total_trades")
     base = base.join(sum_order_count, on = group_cols, how="left").fillna(0)
 
     for v, f in zip(var_names, fill_na):
         median_var_name = v + "_med"
         max_var_name = v + "_max"
         median_var = df.groupby(group_cols, observed = True)[v].\
-                    apply(lambda x: x.median()).rename(median_var_name)
+            median().rename(median_var_name)
         max_var = df.groupby(group_cols, observed = True)[v].\
-                    apply(lambda x: x.max()).rename(max_var_name)
+            max().rename(max_var_name)
         
         base = base.join(median_var, on = group_cols, how="left").fillna(f)
         base = base.join(max_var, on = group_cols, how="left").fillna(f)
