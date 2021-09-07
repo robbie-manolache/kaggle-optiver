@@ -191,7 +191,14 @@ def gen_weighted_var(base, df, equal_weight = False,
                       var_names = ["ratio_size_depth1", "ratio_size_depth2"]
                    
     """
+    sum_ob_change = df.groupby(group_cols, observed = True)["sec"].\
+                    count().rename("no_ob_changes")
+    base = base.join(sum_ob_change, on = group_cols, how="left").fillna(0)
 
+    median_ob_time = df.groupby(group_cols, observed = True)["time_length"].\
+                    median().rename("ob_time_length_med")
+    base = base.join(median_ob_time, on = group_cols, how="left").fillna(600)
+    
     for v in var_names:
         if equal_weight == False:
             weighted_var_name = v + "_tw"
@@ -201,7 +208,7 @@ def gen_weighted_var(base, df, equal_weight = False,
         else:
             weighted_var_name = v + "_ew"
             weighted_var = df.groupby(group_cols, observed = True)[v].\
-                apply(lambda x: x.mean()).rename(weighted_var_name)
+                mean().rename(weighted_var_name)
         
         base = base.join(weighted_var, on = group_cols)
 
