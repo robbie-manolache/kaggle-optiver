@@ -59,7 +59,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
     
     # set up DataLoader and empty list to collect processed data
     dl = DataLoader(data_mode=data_mode, data_dir=data_dir)
-    df_list = []
+    main_df_list = []
+    seg_df_list = []
     
     # stock batch iterator
     for base, book, trade in tqdm(dl.batcher(stock_list, batch_size)):
@@ -68,7 +69,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         data_dict = {
             "book": book,
             "trade": trade,
-            "base": base
+            "base": base,
+            "base_seg": None
         }
         
         # iterate through pipeline
@@ -91,14 +93,29 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
                                                  in pl["input"]], **args)        
 
         # append to list
-        df_list.append(data_dict["base"])
+        main_df_list.append(data_dict["base"])
+        if data_dict["base_seg"] is not None:
+            seg_df_list.append(data_dict["base_seg"])
     
-    # compile output and save if location provided
-    df = pd.concat(df_list, ignore_index=True)
+    # compile output(s) 
+    main_df = pd.concat(main_df_list, ignore_index=True)
+    if len(seg_df_list) > 0:
+        seg_df = pd.concat(seg_df_list, ignore_index=True)
+    else:
+        seg_df = None
+    
+    # save output(s) and config if location provided
     if output_dir is not None:
+        
+        # set timestamp and save main training data
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        df.to_csv(os.path.join(output_dir, "%s_%s.csv"%(data_mode, now)), index=False)
+        main_df.to_csv(os.path.join(output_dir, "%s_main_%s.csv"%(data_mode, now)), index=False)
+        
+        # save segment-level training data if available
+        seg_df.to_csv(os.path.join(output_dir, "%s_seg_%s.csv"%(data_mode, now)), index=False)        
+        
+        # save pipeline config
         with open(os.path.join(output_dir, "%s_%s.json"%(data_mode, now)), "w") as wf:
             json.dump(pipeline, wf)
         
-    return df
+    return main_df, seg_df
