@@ -6,17 +6,22 @@
 import os
 import json
 from datetime import datetime
+import pandas as pd
 import lightgbm as lgb
 from optirv.eval_tools import predict_target_class
+from sklearn.model_selection import KFold
 
 def train_lgbm_classifier(config, 
                           train_df, 
                           valid_df=None, 
-                          model_prefix="lgbm_class_",
+                          model_prefix="lgbm_class",
                           output_dir=None,
-                          save_preds=False,
                           save_model=False,
+                          time_stamp=None,
                           verbose=False):
+    """
+    !!! save_model=True does nothing if output_dir=None !!!
+    """
     
     # Load config params
     params = config["params"] # dict
@@ -54,16 +59,62 @@ def train_lgbm_classifier(config,
     # save outputs as required
     if output_dir is not None:
         
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if time_stamp is None:
+            now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        else:
+            now = time_stamp
         model_name =  "%s_%s"%(model_prefix, now)
         
         if save_model:
             model.save_model(os.path.join(output_dir, "%s.txt"%model_name))
             with open(os.path.join(output_dir, "%s_cfg.json"%model_name), "w") as wf:
-                json.dump(config, wf) 
-        
-        if save_preds:
-            pred_df.to_csv(os.path.join(output_dir, "%s.csv"%model_name),
-                           index=False)
+                json.dump(config, wf)
             
     return model, pred_df
+
+def classifier_CV(df, config,
+                  train_func="train_lgbm_classifier",
+                  model_prefix="lgbm_class",
+                  n_splits=5, split_seed=42,
+                  output_dir=None):
+    """
+    """
+    
+    # pick training function
+    func_dict = {
+        "train_lgbm_classifier": train_lgbm_classifier
+    }
+    train_func = func_dict[train_func]
+    
+    # setup
+    time_ids = df["time_id"].unique()
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
+    all_preds = []
+    
+    # iterate thru the folds
+    for train_idx, test_idx in kf.split(time_ids):
+        
+        # select data
+        train_times, test_times = time_ids[train_idx], time_ids[test_idx]
+        train_df = df.query("time_id in @train_times").copy()
+        valid_df = df.query("time_id in @test_times").copy()
+        
+        # train model
+        model, pred_df = train_func(config, train_df, valid_df)
+        all_preds.append(pred_df)
+        
+    # compile all_preds
+    all_preds = pd.concat(all_preds, ignore_index=True)
+    
+    # train full model
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    model, pred_df = train_func(config, train_df=df, valid_df=None,
+                                model_prefix=model_prefix,
+                                output_dir=output_dir,
+                                save_model=True, time_stamp=now)
+    
+    if output_dir is not None:
+        all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.json"%
+                                          (model_prefix, now)), index=False)        
+    
+    return model, all_preds
