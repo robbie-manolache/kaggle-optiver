@@ -109,13 +109,16 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         
         # set timestamp and save main training data
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        main_df.to_csv(os.path.join(output_dir, "%s_main_%s.csv"%(data_mode, now)), index=False)
+        main_df.to_parquet(os.path.join(
+            output_dir, "%s_main_%s.parquet"%(data_mode, now)), index=False)
         
         # save segment-level training data if available
-        seg_df.to_csv(os.path.join(output_dir, "%s_seg_%s.csv"%(data_mode, now)), index=False)        
+        seg_df.to_parquet(os.path.join(
+            output_dir, "%s_seg_%s.parquet"%(data_mode, now)), index=False)        
         
         # save pipeline config
-        with open(os.path.join(output_dir, "%s_%s.json"%(data_mode, now)), "w") as wf:
+        with open(os.path.join(
+            output_dir, "%s_%s.json"%(data_mode, now)), "w") as wf:
             json.dump(pipeline, wf)
         
     return main_df, seg_df
