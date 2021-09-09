@@ -53,7 +53,17 @@ def stock_embed_index(df, name=["embed_index"]):
     stock_map = dict(zip(df["stock_id"].unique(), list(range(n_stocks))))
     df.loc[:, name] = df["stock_id"].map(stock_map)
  
-def gen_target_class(df, in_col='target', out_col='target_class',
+def gen_target_change(df, target_col="target", rvol_col="WAP1_lnret_vol_all",
+                      new_name="target_chg", pwr_adj=(1, 0.5), log_change=True):
+    """
+    """
+    df.loc[:, new_name] = (df[target_col] ** pwr_adj[0]) / (df[rvol_col] ** pwr_adj[1])
+    if log_change:
+        df.loc[:, new_name] = np.log(df[new_name])
+    else:
+        df.loc[:, new_name] = df[new_name] - 1
+
+def gen_target_class(df, in_col='target_chg', out_col='target_class',
                      splits=[-0.5, -0.05, 0.05, 0.5]):
     """
     Categorize target into different classes by range.
@@ -67,7 +77,7 @@ def gen_target_class(df, in_col='target', out_col='target_class',
                                 labels=list(range(len(splits)-1))
                                 ).astype(int) 
          
-def final_feature_pipe(df, pipeline=[], output_dir=None):
+def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
     """
     """
     
@@ -77,6 +87,7 @@ def final_feature_pipe(df, pipeline=[], output_dir=None):
         "compute_ratio": compute_ratio,
         "stock_embed_index": stock_embed_index,
         "agg_by_time_id": agg.agg_by_time_id,
+        "gen_target_change": gen_target_change,
         "gen_target_class": gen_target_class
     }
     
@@ -97,5 +108,6 @@ def final_feature_pipe(df, pipeline=[], output_dir=None):
         
     if output_dir is not None:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        with open(os.path.join(output_dir, "final_proc_%s.json"%now), "w") as wf:
+        with open(os.path.join(
+            output_dir, "final_proc_%s_%s.json"%(task, now)), "w") as wf:
             json.dump(pipeline, wf)                    

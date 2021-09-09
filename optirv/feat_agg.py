@@ -5,11 +5,10 @@
 
 
 
-def agg_by_time_id(df, agg_vars, new_names,
-                   agg_func="mean"):
+def agg_by_time_id(df, agg_vars, agg_func="mean", suffix="_agg"):
     """
     """
-    for a, n in zip(agg_vars, new_names):
-        df.loc[:, n] = df.groupby("time_id")[a].transform(agg_func)
-    
+    for av in agg_vars:
+        col = av + suffix 
+        df.loc[:, col] = df.groupby("time_id")[av].transform(agg_func)    
     
