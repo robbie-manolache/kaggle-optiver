@@ -5,7 +5,7 @@
 
 import numpy as np
 import pandas as pd
-
+from sklearn.metrics import log_loss
 
 def rmspe(y_true, y_pred):
     """
@@ -14,7 +14,7 @@ def rmspe(y_true, y_pred):
 
 def predict_target_class(eval_df, model,
                          eval_cols=["stock_id", "time_id", 
-                                    "target", "target_class"]):
+                                    "target_chg", "target_class"]):
     """
     Predict target class using LGBM classifier.
     """
@@ -32,3 +32,8 @@ def predict_target_class(eval_df, model,
     
     return df
 
+def multi_log_loss(pred_df, target="target_class"):
+    """
+    """
+    pred_cols = [c for c in pred_df.columns if c.startswith("class_")]
+    return log_loss(pred_df[target], pred_df[pred_cols])
