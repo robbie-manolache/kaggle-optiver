@@ -38,8 +38,11 @@ def train_lgbm_classifier(config,
     # create lightGBM datasets
     train_lgb = lgb.Dataset(train_df[x_cols], label=train_df[target],
                             categorical_feature=x_cats)
-    valid_lgb = lgb.Dataset(valid_df[x_cols], label=valid_df[target],
-                            categorical_feature=x_cats)
+    if valid_df is None:
+        valid_lgb, e_stop = None, None
+    else:
+        valid_lgb = lgb.Dataset(valid_df[x_cols], label=valid_df[target],
+                                categorical_feature=x_cats)
     
     # train model
     model = lgb.train(params=params, 
@@ -114,7 +117,7 @@ def classifier_CV(df, config,
                                 save_model=True, time_stamp=now)
     
     if output_dir is not None:
-        all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.json"%
+        all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.parquet"%
                                           (model_prefix, now)), index=False)        
     
     return model, all_preds
