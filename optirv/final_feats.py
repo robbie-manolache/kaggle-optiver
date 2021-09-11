@@ -54,14 +54,19 @@ def stock_embed_index(df, name=["embed_index"]):
     df.loc[:, name] = df["stock_id"].map(stock_map)
  
 def gen_target_change(df, target_col="target", rvol_col="WAP1_lnret_vol_all",
-                      new_name="target_chg", pwr_adj=(1, 0.5), log_change=True):
+                      name="target_chg", pwr_adj=(1, 0.5), 
+                      log_change=True, reverse=False):
     """
     """
-    df.loc[:, new_name] = (df[target_col] ** pwr_adj[0]) / (df[rvol_col] ** pwr_adj[1])
-    if log_change:
-        df.loc[:, new_name] = np.log(df[new_name])
+    if reverse:
+        df.loc[:, name] = (df[rvol_col]**pwr_adj[1])/(df[target_col]**pwr_adj[0])
     else:
-        df.loc[:, new_name] = df[new_name] - 1
+        df.loc[:, name] = (df[target_col]**pwr_adj[0])/(df[rvol_col]**pwr_adj[1])
+        
+    if log_change:
+        df.loc[:, name] = np.log(df[name])
+    else:
+        df.loc[:, name] = df[name] - 1
 
 def gen_target_class(df, in_col='target_chg', out_col='target_class',
                      splits=[-0.5, -0.05, 0.05, 0.5]):
@@ -76,6 +81,13 @@ def gen_target_class(df, in_col='target_chg', out_col='target_class',
     df.loc[:, out_col] = pd.cut(df[in_col], bins=splits, 
                                 labels=list(range(len(splits)-1))
                                 ).astype(int) 
+
+def reshape_segments(df, n, drop_cols=["stock_id", "time_id"]):
+    """
+    """
+    x = df.drop(drop_cols, axis=1).values
+    x = np.reshape(x, (int(x.shape[0]/n), n, x.shape[1]))
+    return x[:, :, :, np.newaxis]
          
 def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
     """

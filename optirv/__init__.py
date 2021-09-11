@@ -14,7 +14,8 @@ from optirv.pre_proc import merge_book_trade, compute_WAP, compute_lnret, \
 from optirv.feat_eng import add_real_vol_cols, compute_BPV_retquad, \
     gen_weighted_var, gen_last_obs, gen_trade_stats, gen_var_relto_dist
 from optirv.final_feats import square_vars, interact_vars, compute_ratio, \
-    stock_embed_index, gen_target_class, gen_target_change, final_feature_pipe
+    stock_embed_index, gen_target_class, gen_target_change, reshape_segments, \
+    final_feature_pipe
 from optirv.feat_agg import agg_by_time_id
 from optirv.data_pipes import gen_seg_base, feat_eng_pipeline
 from optirv.data_viz import plot_returns_by_time, plot_fcst_vs_act, \

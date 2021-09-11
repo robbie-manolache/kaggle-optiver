@@ -48,19 +48,25 @@ def plot_returns_by_time(base, book, stock_id,
     plt.tight_layout()    
     plt.show()
     
-def plot_fcst_vs_act(y_pred, y_true, figsize=(8,8),
+def plot_fcst_vs_act(y_pred, y_true, diag_trim=False,
+                     linear_est=False, figsize=(8,8),
                      scatter_size=5, line_width=1):
     """
     """ 
     
     # derive line of best fit and values to plot for 45-deg line
-    c, b = np.polyfit(y_true, y_pred, deg=1)
-    d45 = y_true[(y_true > y_pred.min()) & (y_true < y_pred.max())]
+    if linear_est:
+        c, b = np.polyfit(y_true, y_pred, deg=1)
+    if diag_trim:    
+        d45 = y_true[(y_true > y_pred.min()) & (y_true < y_pred.max())]
+    else:
+        d45 = y_true
     
     # generate plot
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     ax.scatter(y_true, y_pred, c="teal", s=scatter_size)
-    ax.plot(y_true, (c + b*y_true), c="blue", lw=line_width)
+    if linear_est:
+        ax.plot(y_true, (c + b*y_true), c="blue", lw=line_width)
     ax.plot(d45, d45, c="red", lw=line_width)
     ax.set_xlabel("Actual")
     ax.set_ylabel("Forecast")

@@ -17,7 +17,25 @@ def rmspe_loss(y_true, y_pred):
     """   
     return K.sqrt(K.mean(K.square((y_true-y_pred)/(y_true+1e-6)), axis=-1))
 
+def __conv_layer__(x, c):
+    """
+    """
+    conv_x = kl.Conv2D(filters=c["filters"], 
+                       kernel_size=(1, c["shape"][1]),
+                       activation=c["conv_acti"],
+                       kernel_regularizer=kreg.l2(c["conv_reg"])
+                       )(x)
+    conv_x = kl.Flatten()(conv_x)
+    if c["dense"] > 0:
+        conv_x = kl.Dense(c["dense"],
+                            activation=c["dense_acti"],
+                            kernel_regularizer=kreg.l2(c["dense_reg"])
+                            )(conv_x)
+    return conv_x
+
 def build_NN_model(dense_in=[],
+                   conv_in=[],
+                   extern_in=[],
                    embed={"mult": True, "const": 1, "N": None},
                    extra_layer=None,
                    out_layer={"acti": "linear", "reg": 1e-5}):
@@ -40,6 +58,21 @@ def build_NN_model(dense_in=[],
         x_out.append(kl.Dense(d["N"], activation=d["acti"],
                               kernel_regularizer=kreg.l2(d["reg"])
                               )(all_inputs[-1]))
+    
+    # iterate and accumulate inputs for cnn layers
+    for c in conv_in:
+        all_inputs.append(kl.Input(shape=c["shape"]))
+        if c["dense"] > 0:
+            n_mult += c["dense"]
+        else:
+            n_mult += (c["filters"] * c["shape"][0])
+        x_out.append(__conv_layer__(all_inputs[-1], c))
+    
+    # iterate and accumulate external inputs
+    for ex in extern_in:
+        all_inputs.append(kl.Input(shape=ex["N"]))
+        n_mult += ex["N"]
+        x_out.append(all_inputs[-1])
     
     # concatenate multiple inputs
     if len(x_out) > 1:
