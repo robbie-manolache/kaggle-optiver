@@ -33,8 +33,24 @@ def __conv_layer__(x, c):
                             )(conv_x)
     return conv_x
 
+def __lstm_layer__(x, c):
+    """
+    """
+    lstm_x = kl.LSTM(units=c["units"],
+                     kernel_regularizer=kreg.l2(c["knl_reg"]),
+                     recurrent_regularizer=kreg.l2(c["rec_reg"]),
+                     activity_regularizer=kreg.l2(c["act_reg"])
+                     )(x)
+    if c["dense"] > 0:
+        lstm_x = kl.Dense(c["dense"],
+                            activation=c["dense_acti"],
+                            kernel_regularizer=kreg.l2(c["dense_reg"])
+                            )(lstm_x)
+    return lstm_x
+
 def build_NN_model(dense_in=[],
                    conv_in=[],
+                   lstm_in=[],
                    extern_in=[],
                    embed={"mult": True, "const": 1, "N": None},
                    extra_layer=None,
@@ -67,6 +83,15 @@ def build_NN_model(dense_in=[],
         else:
             n_mult += (c["filters"] * c["shape"][0])
         x_out.append(__conv_layer__(all_inputs[-1], c))
+        
+    # iterate and accumulate inputs for LSTM layers
+    for l in lstm_in:
+        all_inputs.append(kl.Input(shape=l["shape"]))
+        if l["dense"] > 0:
+            n_mult += l["dense"]
+        else:
+            n_mult += l["units"]
+        x_out.append(__lstm_layer__(all_inputs[-1], l))
     
     # iterate and accumulate external inputs
     for ex in extern_in:
