@@ -82,6 +82,35 @@ def gen_target_class(df, in_col='target_chg', out_col='target_class',
                                 labels=list(range(len(splits)-1))
                                 ).astype(int) 
 
+def standardize(df, group_var="stock_id",
+                excl_vars=["stock_id", "time_id", "target", "target_chg"],
+                df_keys=["stock_id", "time_id"], 
+                input_dir=None, output_dir=None):
+    """
+    """
+    
+    x_cols = [c for c in df.columns if c not in excl_vars]
+    
+    if input_dir is None:
+        mean_df = df.groupby(group_var)[x_cols].mean()
+        std_df = df.groupby(group_var)[x_cols].std()
+        if (std_df == 0).sum().sum() > 0:
+            std_df[std_df == 0] = 1
+    else:
+        mean_df = pd.read_csv(os.path.join(output_dir, "mean.csv"), 
+                              index_col=group_var)
+        std_df = pd.read_csv(os.path.join(output_dir, "st_dev.csv"), 
+                             index_col=group_var)
+    
+    if output_dir is not None:
+        mean_df.to_csv(os.path.join(output_dir, "mean.csv"))
+        std_df.to_csv(os.path.join(output_dir, "st_dev.csv"))
+        
+    mean_df = df[df_keys].join(mean_df, on=group_var)
+    std_df = df[df_keys].join(std_df, on=group_var)
+    
+    df.loc[:, x_cols] = (df[x_cols]-mean_df[x_cols])/std_df[x_cols]
+
 def reshape_segments(df, n, drop_cols=["stock_id", "time_id"]):
     """
     """
@@ -100,7 +129,8 @@ def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
         "stock_embed_index": stock_embed_index,
         "agg_by_time_id": agg.agg_by_time_id,
         "gen_target_change": gen_target_change,
-        "gen_target_class": gen_target_class
+        "gen_target_class": gen_target_class,
+        "standardize": standardize
     }
     
     # iterate through pipeline
