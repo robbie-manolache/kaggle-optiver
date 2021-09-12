@@ -19,4 +19,4 @@ else:
 # upload to Kaggle datasets
 upload_dataset(dst_dir,
                new_version=True,
-               version_notes="Upload new final proc (class) config")
+               version_notes="Upload new final proc (reg) config")
