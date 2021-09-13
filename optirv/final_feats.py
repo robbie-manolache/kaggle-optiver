@@ -111,12 +111,16 @@ def standardize(df, group_var="stock_id",
     
     df.loc[:, x_cols] = (df[x_cols]-mean_df[x_cols])/std_df[x_cols]
 
-def reshape_segments(df, n, drop_cols=["stock_id", "time_id"]):
+def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
+                     add_extra_axis=False):
     """
     """
     x = df.drop(drop_cols, axis=1).values
     x = np.reshape(x, (int(x.shape[0]/n), n, x.shape[1]))
-    return x[:, :, :, np.newaxis]
+    if add_extra_axis:
+        return x[:, :, :, np.newaxis]
+    else:
+        return x
          
 def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
     """

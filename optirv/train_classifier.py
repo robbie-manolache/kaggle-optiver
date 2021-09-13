@@ -125,13 +125,13 @@ def classifier_CV(df, config,
         # create results file for all out-of-sample preds
         target = config["target"]
         log_loss_preds = log_loss(all_preds[target], 
-                                  all_preds[[c for c in pred_df.columns 
+                                  all_preds[[c for c in all_preds.columns 
                                              if c.startswith("class_")]])
         results = {
             "log_loss": log_loss_preds,
             "accuracy": np.exp(-log_loss_preds),
             "f1_scores": f1_score(all_preds[target], all_preds["pred_class"],
-                                  average=None),
+                                  average=None).tolist(),
             "f1_micro": f1_score(all_preds[target], all_preds["pred_class"],
                                  average="micro"),   
             "f1_macro": f1_score(all_preds[target], all_preds["pred_class"],
@@ -142,7 +142,7 @@ def classifier_CV(df, config,
         
         # save preds and results
         with open(os.path.join(
-            output_dir, "%s_%s_results.json"%(model_prefix, now), "w")) as wf:
+            output_dir, "%s_%s_results.json"%(model_prefix, now)), "w") as wf:
             json.dump(results, wf)                                      
         all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.parquet"%
                                           (model_prefix, now)), index=False)        

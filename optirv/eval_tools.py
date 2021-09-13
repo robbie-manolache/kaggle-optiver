@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import log_loss
 
-def rmspe(y_true, y_pred):
+def rmspe_calc(y_true, y_pred):
     """
     """
     return np.sqrt(np.mean(((y_true-y_pred)/y_true) ** 2))

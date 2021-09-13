@@ -6,11 +6,18 @@
 import os
 import json
 from datetime import datetime
+import numpy as np
+import pandas as pd
+
 import tensorflow as tf
 import keras.layers as kl
 import keras.regularizers as kreg
 import keras.backend as K
 from keras.optimizers import Adam
+from sklearn.model_selection import KFold
+
+from optirv.final_feats import reshape_segments
+from optirv.eval_tools import rmspe_calc
 
 def rmspe_loss(y_true, y_pred):
     """
@@ -51,7 +58,7 @@ def __lstm_layer__(x, c):
 def build_NN_model(dense_in=[],
                    conv_in=[],
                    lstm_in=[],
-                   extern_in=[],
+                   class_in=[],
                    embed={"mult": True, "const": 1, "N": None},
                    extra_layer=None,
                    out_layer={"acti": "linear", "reg": 1e-5}):
@@ -93,10 +100,10 @@ def build_NN_model(dense_in=[],
             n_mult += l["units"]
         x_out.append(__lstm_layer__(all_inputs[-1], l))
     
-    # iterate and accumulate external inputs
-    for ex in extern_in:
-        all_inputs.append(kl.Input(shape=ex["N"]))
-        n_mult += ex["N"]
+    # iterate and accumulate class prediction inputs
+    for xc in class_in:
+        all_inputs.append(kl.Input(shape=xc["N"]))
+        n_mult += xc["N"]
         x_out.append(all_inputs[-1])
     
     # concatenate multiple inputs
@@ -139,7 +146,7 @@ def train_NN_model(model_config, x_train, y_train,
                    epochs=[50, 25], batches=[15000, 97000],
                    shuffle=True, verbose=0,
                    output_dir=None, model_prefix="NN_",
-                   save_model=False, save_preds=False):
+                   save_model=False, time_stamp=None):
     """
     """
     
@@ -163,7 +170,11 @@ def train_NN_model(model_config, x_train, y_train,
     # save outputs as required
     if output_dir is not None:
         
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # create model name
+        if time_stamp is None:
+            now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        else:
+            now = time_stamp
         model_name =  "%s_%s"%(model_prefix, now)
         
         config = {
@@ -185,10 +196,140 @@ def train_NN_model(model_config, x_train, y_train,
             # train config
             with open(os.path.join(output_dir, "%s_train_cfg.json"%model_name), "w") as wf:
                 json.dump(config, wf)
-        
-        # save predictions        
-        if save_preds and (x_valid is not None) and (pred_df is not None):
-            pred_df.to_csv(os.path.join(output_dir, "%s.csv"%model_name),
-                           index=False)
             
     return model, pred_df
+
+def regression_CV(main_df, seg_df, class_df,
+                  data_config, model_config, train_config,
+                  n_splits=5, split_seed=42, target="target_chg", 
+                  sqr_target=True, ln_target=True,
+                  model_prefix="NN_", output_dir=None):
+    """
+    """
+
+    # extract metadata
+    time_ids = main_df["time_id"].unique()
+    n_stocks = main_df["stock_id"].nunique()
+    n_seg = seg_df["segment"].nunique()
+    
+    # sort input dfs
+    main_df = main_df.sort_values(["stock_id", "time_id"])
+    seg_df = seg_df.sort_values(["stock_id", "time_id", "segment"])
+    class_df = class_df.sort_values(["stock_id", "time_id"])
+    
+    # initiate KF
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
+    all_preds = []
+    fold_num = 0
+    
+    # loop thru folds
+    for train_idx, test_idx in kf.split(time_ids):
+        
+        # select data
+        train_times, test_times = time_ids[train_idx], time_ids[test_idx]
+        
+        # split data    
+        main_train = main_df.query("time_id in @train_times").copy()
+        main_test = main_df.query("time_id in @test_times").copy()
+        seg_train = seg_df.query("time_id in @train_times").copy()
+        seg_test = seg_df.query("time_id in @test_times").copy()
+        class_train = class_df.query("time_id in @train_times").copy()
+        class_test = class_df.query("time_id in @test_times").copy()
+        
+        # reshape segment data
+        seg_train = reshape_segments(seg_train, n_seg)
+        seg_test = reshape_segments(seg_test, n_seg)
+        
+        # apply data config
+        x_train, x_test = [], []
+        for k, v in data_config.items():
+            if k == "embed":
+                x_train.append(main_train[v])
+                x_test.append(main_test[v])
+            elif k == "main":
+                for col_set in v:
+                    x_train.append(main_train[col_set])
+                    x_test.append(main_test[col_set])
+            elif k == "seg":
+                if v:
+                    x_train.append(seg_train)
+                    x_test.append(seg_test)
+            elif k == "class":
+                x_train.append(class_train[v])
+                x_test.append(class_test[v])
+        
+        pred_frame = main_test[["stock_id", "time_id", target]].copy()        
+        model, pred_df = train_NN_model(model_config, 
+                                        x_train, 
+                                        main_train[target],
+                                        x_test, 
+                                        pred_frame,
+                                        **train_config)      
+        fold_num += 1
+        pred_df.loc[:, "fold"] = fold_num
+        all_preds.append(pred_df)
+    
+    # compile all_preds
+    all_preds = pd.concat(all_preds, ignore_index=True)
+    
+    # apply data config
+    x_train = []
+    for k, v in data_config.items():
+        if k == "embed":
+            x_train.append(main_df[v])
+        elif k == "main":
+            for col_set in v:
+                x_train.append(main_df[col_set])
+        elif k == "seg":
+            if v:
+                x_train.append(reshape_segments(seg_df, n_seg))
+        elif k == "class":
+            x_train.append(class_df[v])
+    
+    # train full model
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    model, pred_df = train_NN_model(model_config, 
+                                    x_train,
+                                    main_df[target],
+                                    save_model=True,
+                                    model_prefix=model_prefix,
+                                    output_dir=output_dir,
+                                    time_stamp=now,
+                                    **train_config)
+    
+    # save outputs
+    if output_dir is not None:
+        
+        # save preds and data config       
+        all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.parquet"%
+                                          (model_prefix, now)), index=False)
+        with open(os.path.join(
+            output_dir, "%s_%s_data_cfg.json"%(model_prefix, now)), "w") as wf:
+            json.dump(data_config, wf) 
+            
+        # results
+        results = []
+        for f in range(n_splits+1):
+            if f == 0:
+                pred_df = all_preds.copy()
+                fold = "All"
+            else:
+                pred_df = all_preds.query("fold == @f").copy()
+                fold = "Fold_" + str(f)
+            
+            mse = np.mean(np.square(pred_df[target] - pred_df["pred"]))
+            for c in ["pred", target]:
+                if ln_target:
+                    pred_df.loc[:, c] = np.exp(pred_df[c])
+                else:
+                    pred_df.loc[:, c] = pred_df[c] + 1
+                if sqr_target:
+                    pred_df.loc[:, c] = np.sqrt(pred_df[c])
+            rmspe = rmspe_calc(pred_df[target], pred_df["pred"])
+            
+            results.append({"Fold": fold, "MSE": mse, "RMSPE": rmspe})
+        results = pd.DataFrame(results)
+        results.to_csv(os.path.join(
+            output_dir, "%s_%s_results.csv"%(model_prefix, now)), index=False) 
+                
+    return model, all_preds
