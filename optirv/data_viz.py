@@ -75,7 +75,8 @@ def plot_fcst_vs_act(y_pred, y_true, diag_trim=False,
 def confusion_matrix(df, n_class,
                      actual="target_class", 
                      prediction="pred_class",
-                     as_percent=True, ax=None):
+                     as_percent=True,
+                     figsize=(7,7)):
     """
     Create confusion matrix to visualize classification performance.
     """
@@ -90,13 +91,8 @@ def confusion_matrix(df, n_class,
     else:
         vmin, vmax, fmt = None, None, ".0f"
     
-    # define ax
-    if ax is None:
-        _, ax = plt.subplots(figsize=(5,5))
-    else:
-        pass    
-    
     # generate plot
+    fig, ax = plt.subplots(figsize=figsize) 
     sns.heatmap(cfmat, cbar=False, annot=True, fmt=fmt, 
                 ax=ax, vmin=vmin, vmax=vmax, cmap='Blues')
     plt.xlabel("Actual Class")

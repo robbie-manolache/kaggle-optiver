@@ -6,10 +6,12 @@
 import os
 import json
 from datetime import datetime
+import numpy as np
 import pandas as pd
 import lightgbm as lgb
 from optirv.eval_tools import predict_target_class
 from sklearn.model_selection import KFold
+from sklearn.metrics import f1_score, log_loss
 
 def train_lgbm_classifier(config, 
                           train_df, 
@@ -61,13 +63,15 @@ def train_lgbm_classifier(config,
     
     # save outputs as required
     if output_dir is not None:
-        
+                
+        # create model name
         if time_stamp is None:
             now = datetime.now().strftime("%Y%m%d_%H%M%S")
         else:
             now = time_stamp
         model_name =  "%s_%s"%(model_prefix, now)
         
+        # save model and config
         if save_model:
             model.save_model(os.path.join(output_dir, "%s.txt"%model_name))
             with open(os.path.join(output_dir, "%s_cfg.json"%model_name), "w") as wf:
@@ -117,6 +121,29 @@ def classifier_CV(df, config,
                                 save_model=True, time_stamp=now)
     
     if output_dir is not None:
+        
+        # create results file for all out-of-sample preds
+        target = config["target"]
+        log_loss_preds = log_loss(all_preds[target], 
+                                  all_preds[[c for c in pred_df.columns 
+                                             if c.startswith("class_")]])
+        results = {
+            "log_loss": log_loss_preds,
+            "accuracy": np.exp(-log_loss_preds),
+            "f1_scores": f1_score(all_preds[target], all_preds["pred_class"],
+                                  average=None),
+            "f1_micro": f1_score(all_preds[target], all_preds["pred_class"],
+                                 average="micro"),   
+            "f1_macro": f1_score(all_preds[target], all_preds["pred_class"],
+                                 average="macro"),
+            "f1_weigthed": f1_score(all_preds[target], all_preds["pred_class"],
+                                    average="weighted")  
+        }
+        
+        # save preds and results
+        with open(os.path.join(
+            output_dir, "%s_%s_results.json"%(model_prefix, now), "w")) as wf:
+            json.dump(results, wf)                                      
         all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.parquet"%
                                           (model_prefix, now)), index=False)        
     
