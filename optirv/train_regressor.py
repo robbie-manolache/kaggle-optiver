@@ -142,12 +142,13 @@ def build_NN_model(dense_in=[],
         
 def train_NN_model(model_config, x_train, y_train,
                    x_valid=None, pred_df=None,
-                   loss="mse", lr=0.0025,
+                   loss="mse", weights=None, lr=0.0025,
                    epochs=[50, 25], batches=[15000, 97000],
                    shuffle=True, verbose=0,
                    output_dir=None, model_prefix="NN_",
                    save_model=False, time_stamp=None):
     """
+    weight:     vector of weights, same length as y_train
     """
     
     # create model object and compule
@@ -159,6 +160,7 @@ def train_NN_model(model_config, x_train, y_train,
     for n, b in zip(epochs, batches):
         model.fit(x=x_train, y=y_train, 
                   epochs=n, batch_size=b, 
+                  sample_weight=weights,
                   shuffle=shuffle, 
                   verbose=verbose)
     
@@ -201,10 +203,12 @@ def train_NN_model(model_config, x_train, y_train,
 
 def regression_CV(main_df, seg_df, class_df,
                   data_config, model_config, train_config,
-                  n_splits=5, split_seed=42, target="target_chg", 
+                  n_splits=5, split_seed=42, 
+                  weight_col=None, target="target_chg", 
                   sqr_target=True, ln_target=True,
                   model_prefix="NN_", output_dir=None):
     """
+    weight_col: name of column in main_df containing weights
     """
 
     # extract metadata
@@ -258,16 +262,26 @@ def regression_CV(main_df, seg_df, class_df,
                 x_train.append(class_train[v])
                 x_test.append(class_test[v])
         
+        # get weights
+        if weight_col is not None:
+            weights = main_train[weight_col]
+        else:
+            weights = None
+        
         pred_frame = main_test[["stock_id", "time_id", target]].copy()        
         model, pred_df = train_NN_model(model_config, 
                                         x_train, 
                                         main_train[target],
                                         x_test, 
                                         pred_frame,
-                                        **train_config)      
+                                        weights=weights,
+                                        **train_config)
+        
+            
         fold_num += 1
         pred_df.loc[:, "fold"] = fold_num
         all_preds.append(pred_df)
+        print("|%s Fold %d complete! %s|"%("-"*25, fold_num, "-"*25))
     
     # compile all_preds
     all_preds = pd.concat(all_preds, ignore_index=True)

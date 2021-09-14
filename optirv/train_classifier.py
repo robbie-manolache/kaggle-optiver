@@ -9,9 +9,25 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
-from optirv.eval_tools import predict_target_class
+from optirv.eval_tools import predict_target_class, multi_log_loss
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, log_loss
+from sklearn.metrics import f1_score
+
+def __score_classifier___(preds, target):
+    """
+    """
+    log_loss_preds = multi_log_loss(preds, target)
+    return {"log_loss": log_loss_preds,
+            "accuracy": np.exp(-log_loss_preds),
+            "f1_scores": f1_score(preds[target], preds["pred_class"],
+                                  average=None).tolist(),
+            "f1_micro": f1_score(preds[target], preds["pred_class"],
+                                 average="micro"),   
+            "f1_macro": f1_score(preds[target], preds["pred_class"],
+                                 average="macro"),
+            "f1_weighted": f1_score(preds[target], preds["pred_class"],
+                                    average="weighted")  
+    }
 
 def train_lgbm_classifier(config, 
                           train_df, 
@@ -31,15 +47,24 @@ def train_lgbm_classifier(config,
     e_stop = config["e_stop"] # int
     x_cols = config["x_cols"] # list
     x_cats = config["x_cats"] # list / None
+    weight = config["weight"] # str / None
     target = config["target"] # str
     
     # adjust x_cats to default if None
     if x_cats is None:
         x_cats = "auto"
     
+    # get weights if provided
+    if weight is None:
+        weight_vec = None
+    else:
+        weight_vec = train_df[weight]
+    
     # create lightGBM datasets
-    train_lgb = lgb.Dataset(train_df[x_cols], label=train_df[target],
-                            categorical_feature=x_cats)
+    train_lgb = lgb.Dataset(train_df[x_cols], 
+                            label=train_df[target],
+                            categorical_feature=x_cats, 
+                            weight=weight_vec)
     if valid_df is None:
         valid_lgb, e_stop = None, None
     else:
@@ -124,20 +149,9 @@ def classifier_CV(df, config,
         
         # create results file for all out-of-sample preds
         target = config["target"]
-        log_loss_preds = log_loss(all_preds[target], 
-                                  all_preds[[c for c in all_preds.columns 
-                                             if c.startswith("class_")]])
         results = {
-            "log_loss": log_loss_preds,
-            "accuracy": np.exp(-log_loss_preds),
-            "f1_scores": f1_score(all_preds[target], all_preds["pred_class"],
-                                  average=None).tolist(),
-            "f1_micro": f1_score(all_preds[target], all_preds["pred_class"],
-                                 average="micro"),   
-            "f1_macro": f1_score(all_preds[target], all_preds["pred_class"],
-                                 average="macro"),
-            "f1_weigthed": f1_score(all_preds[target], all_preds["pred_class"],
-                                    average="weighted")  
+            "training": __score_classifier___(pred_df, target),
+            "validation": __score_classifier___(all_preds, target)
         }
         
         # save preds and results

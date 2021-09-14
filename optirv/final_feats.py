@@ -68,6 +68,14 @@ def gen_target_change(df, target_col="target", rvol_col="WAP1_lnret_vol_all",
     else:
         df.loc[:, name] = df[name] - 1
 
+def gen_weights(df, power=0.1, pwr_adj=(1, 0.5),
+                target_col="target", rvol_col="WAP1_lnret_vol_all"):
+    """
+    """
+    df.loc[:, "weight"] = np.abs(((df[target_col]**pwr_adj[0]) - 
+                                  (df[rvol_col]**pwr_adj[1]))/
+                                 (df[target_col]**pwr_adj[0]))**power
+
 def gen_target_class(df, in_col='target_chg', out_col='target_class',
                      splits=[-0.5, -0.05, 0.05, 0.5]):
     """
@@ -83,7 +91,7 @@ def gen_target_class(df, in_col='target_chg', out_col='target_class',
                                 ).astype(int) 
 
 def standardize(df, group_var="stock_id",
-                excl_vars=["stock_id", "time_id", "target", "target_chg"],
+                excl_vars=["stock_id", "time_id", "target", "target_chg", "weight"],
                 df_keys=["stock_id", "time_id"], 
                 input_dir=None, output_dir=None):
     """
@@ -134,6 +142,7 @@ def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
         "agg_by_time_id": agg.agg_by_time_id,
         "gen_target_change": gen_target_change,
         "gen_target_class": gen_target_class,
+        "gen_weights": gen_weights,
         "standardize": standardize
     }
     
