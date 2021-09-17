@@ -44,6 +44,7 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
             
     return df
 
+
 def gen_merged_book_trade_var(df):
     """
     df: merged book and trade
@@ -65,7 +66,42 @@ def gen_merged_book_trade_var(df):
     df.loc[~sec0, "ratio_size_depth1"] = size_f1/(bidQ1 + askQ1)
     df.loc[~sec0, "ratio_size_depth2"] = size_f1/(bidQ1 + askQ1 + bidQ2 + askQ2)
 
-    return 
+    return
+
+def gen_outlier_flags(df, outliers_df,
+                      dist_unit = ["stock_id"],
+                      percentile_spec=[98, 99]):
+
+    """
+    df is merged book trade, after gen_merged_book_trade_var
+    outliers_df is generated from feat_agg.gen_outliers_threshold
+    """
+    bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
+                                                  "bid_size1", "ask_size1"]]
+    
+    df = df.merge(outliers_df, on = dist_unit)
+    df.loc[:, "size_l1"] = df["size"].shift(1)
+    for size_col in ["size", "size_l1", "size_f1"]:
+        df.loc[:, size_col] = df[size_col].fillna(0)
+
+    df.loc[:, "size_adj"] = df["size"] + df["size_f1"] + df["size_l1"]
+    df.loc[:, "WAP1"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
+    df.loc[:, "WAP1_l1"] = df["WAP1"].shift(1)
+    df.loc[:, "WAP1_l2"] = df["WAP1"].shift(2)
+
+    for i in percentile_spec:
+
+            threshold = "size" + "pct_%d"%i
+            outlier_flag_name = "outlier_flag_%d"%i
+            WAP1_adj_name = "WAP1_adj_%d"%i
+            outliers = (df["size_adj"] >= df[threshold])
+
+            df.loc[:, outlier_flag_name] = outliers
+            df.loc[:, WAP1_adj_name] = df["WAP1"]            
+            df.loc[outliers, WAP1_adj_name] = np.nan
+            df.loc[:, WAP1_adj_name] = df[WAP1_adj_name].ffill()                   
+
+    return df
 
 def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     """
@@ -248,35 +284,6 @@ def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
                 
         return full_df    
              
-def gen_distribution_stats(dist_base, df, 
-                            var_names=["ln_depth_total_last", "ratio_depth1_2_last",
-                                    "ratio_a_bdepth1_last", "ratio_a_bdepth2_last",
-                                    "q_spread1_last", "q_spread2_last",
-                                    "ratio_askP_last", "ratio_bidP_last",
-                                    "trade_size_med", "time_length_med",
-                                    "ratio_size_depth1_ew", "ratio_size_depth2_ew"],
-                            dist_unit=["stock_id"],
-                            percentile_spec=[50]):
-    """
-    df = aggregate at stock_id-time_id
-    returning distribution characteristics of a variable, default to by stock
 
-    """
-    
-    for v in var_names:
-        mean_name = v + "_mean"
-        std_dev_name = v + "_std"
-        
-        mean = df.groupby(dist_unit, observed=True)[v].apply(lambda x: x.mean()).rename(mean_name)
-        std_dev = df.groupby(dist_unit, observed=True)[v].apply(lambda x: x.std()).rename(std_dev_name)
-
-        dist_base = dist_base.join(mean, on=dist_unit)
-        dist_base = dist_base.join(std_dev, on=dist_unit)
-
-        for i in percentile_spec:
-            pct_temp = df.groupby(dist_unit, observed=True)[v].apply(lambda x: np.percentile(x.dropna(),i)).rename(v + "pct_%d"%i)
-            dist_base = dist_base.join(pct_temp, on=dist_unit)
-
-    return dist_base
 
 
