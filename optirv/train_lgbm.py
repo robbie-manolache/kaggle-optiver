@@ -9,7 +9,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
-from optirv.eval_tools import predict_target_class, multi_log_loss
+from optirv.eval_tools import predict_target, predict_target_class, \
+    multi_log_loss, cv_reg_stats
 from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score
 
@@ -29,14 +30,14 @@ def __score_classifier___(preds, target):
                                     average="weighted")  
     }
 
-def train_lgbm_classifier(config, 
-                          train_df, 
-                          valid_df=None, 
-                          model_prefix="lgbm_class",
-                          output_dir=None,
-                          save_model=False,
-                          time_stamp=None,
-                          verbose=False):
+def train_lgbm_model(config, 
+                     train_df, 
+                     valid_df=None, 
+                     model_prefix="lgbm",
+                     output_dir=None,
+                     save_model=False,
+                     time_stamp=None,
+                     verbose=False):
     """
     !!! save_model=True does nothing if output_dir=None !!!
     """
@@ -81,10 +82,23 @@ def train_lgbm_classifier(config,
                       verbose_eval=verbose)
     
     # generate predictions
-    if valid_df is None:
-        pred_df = predict_target_class(train_df, model)
-    else:
-        pred_df = predict_target_class(valid_df, model)
+    if params["objective"] == "multiclass":
+        if valid_df is None:      
+            pred_df = predict_target_class(train_df, model)
+        else:
+            pred_df = predict_target_class(valid_df, model)
+    elif params["objective"] == "rmse":
+        if valid_df is None:      
+            pred_df = predict_target(train_df, model, eval_cols=[target])
+        else:
+            pred_df = predict_target(valid_df, model, eval_cols=[target])
+    elif params["objective"] == "quantile":
+        if valid_df is None:      
+            pred_df = predict_target(train_df, model, eval_cols=[target], 
+                                     alpha=params["alpha"])
+        else:
+            pred_df = predict_target(valid_df, model, eval_cols=[target], 
+                                     alpha=params["alpha"])
     
     # save outputs as required
     if output_dir is not None:
@@ -104,17 +118,17 @@ def train_lgbm_classifier(config,
             
     return model, pred_df
 
-def classifier_CV(df, config,
-                  train_func="train_lgbm_classifier",
-                  model_prefix="lgbm_class",
-                  n_splits=5, split_seed=42,
-                  output_dir=None):
+def lgbm_CV(df, config,
+            train_func="train_lgbm_model",
+            n_splits=5, split_seed=42,
+            ln_target=True, sqr_target=False,
+            model_prefix="lgbm", output_dir=None):
     """
     """
     
     # pick training function
     func_dict = {
-        "train_lgbm_classifier": train_lgbm_classifier
+        "train_lgbm_model": train_lgbm_model
     }
     train_func = func_dict[train_func]
     
@@ -122,6 +136,7 @@ def classifier_CV(df, config,
     time_ids = df["time_id"].unique()
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
     all_preds = []
+    fold_num = 0
     
     # iterate thru the folds
     for train_idx, test_idx in kf.split(time_ids):
@@ -133,7 +148,12 @@ def classifier_CV(df, config,
         
         # train model
         model, pred_df = train_func(config, train_df, valid_df)
+
+        # capture preds
+        fold_num += 1
+        pred_df.loc[:, "fold"] = fold_num
         all_preds.append(pred_df)
+        print("|%s Fold %d complete! %s|"%("-"*25, fold_num, "-"*25))
         
     # compile all_preds
     all_preds = pd.concat(all_preds, ignore_index=True)
@@ -147,17 +167,30 @@ def classifier_CV(df, config,
     
     if output_dir is not None:
         
-        # create results file for all out-of-sample preds
+        # get target name
         target = config["target"]
-        results = {
-            "training": __score_classifier___(pred_df, target),
-            "validation": __score_classifier___(all_preds, target)
-        }
         
-        # save preds and results
-        with open(os.path.join(
-            output_dir, "%s_%s_results.json"%(model_prefix, now)), "w") as wf:
-            json.dump(results, wf)                                      
+        # classification eval stats
+        if config["params"]["objective"] == "multiclass":
+            results = {
+                "training": __score_classifier___(pred_df, target),
+                "validation": __score_classifier___(all_preds, target)
+            }
+            with open(os.path.join(
+                output_dir, "%s_%s_results.json"%(model_prefix, now)), "w") as wf:
+                json.dump(results, wf) 
+               
+        # regression eval stats         
+        elif config["params"]["objective"] == "rmse":
+            results = cv_reg_stats(all_preds, n_splits, target,
+                                   ln_target, sqr_target)
+            results.to_csv(os.path.join(
+                output_dir, "%s_%s_results.csv"%(model_prefix, now)), index=False) 
+        
+        # quantile eval stats
+        # TBC
+        
+        # save preds                               
         all_preds.to_parquet(os.path.join(output_dir, "%s_%s_preds.parquet"%
                                           (model_prefix, now)), index=False)        
     

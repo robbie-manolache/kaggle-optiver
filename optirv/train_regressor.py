@@ -17,7 +17,7 @@ from keras.optimizers import Adam
 from sklearn.model_selection import KFold
 
 from optirv.final_feats import reshape_segments
-from optirv.eval_tools import rmspe_calc
+from optirv.eval_tools import rmspe_calc, cv_reg_stats
 
 def rmspe_loss(y_true, y_pred):
     """
@@ -145,7 +145,7 @@ def train_NN_model(model_config, x_train, y_train,
                    loss="mse", weights=None, lr=0.0025,
                    epochs=[50, 25], batches=[15000, 97000],
                    shuffle=True, verbose=0,
-                   output_dir=None, model_prefix="NN_",
+                   output_dir=None, model_prefix="NN",
                    save_model=False, time_stamp=None):
     """
     weight:     vector of weights, same length as y_train
@@ -206,7 +206,7 @@ def regression_CV(main_df, seg_df, class_df,
                   n_splits=5, split_seed=42, 
                   weight_col=None, target="target_chg", 
                   sqr_target=True, ln_target=True,
-                  model_prefix="NN_", output_dir=None):
+                  model_prefix="NN", output_dir=None):
     """
     weight_col: name of column in main_df containing weights
     """
@@ -305,6 +305,7 @@ def regression_CV(main_df, seg_df, class_df,
     model, pred_df = train_NN_model(model_config, 
                                     x_train,
                                     main_df[target],
+                                    weights=weights,
                                     save_model=True,
                                     model_prefix=model_prefix,
                                     output_dir=output_dir,
@@ -322,28 +323,9 @@ def regression_CV(main_df, seg_df, class_df,
             json.dump(data_config, wf) 
             
         # results
-        results = []
-        for f in range(n_splits+1):
-            if f == 0:
-                pred_df = all_preds.copy()
-                fold = "All"
-            else:
-                pred_df = all_preds.query("fold == @f").copy()
-                fold = "Fold_" + str(f)
-            
-            mse = np.mean(np.square(pred_df[target] - pred_df["pred"]))
-            for c in ["pred", target]:
-                if ln_target:
-                    pred_df.loc[:, c] = np.exp(pred_df[c])
-                else:
-                    pred_df.loc[:, c] = pred_df[c] + 1
-                if sqr_target:
-                    pred_df.loc[:, c] = np.sqrt(pred_df[c])
-            rmspe = rmspe_calc(pred_df[target], pred_df["pred"])
-            
-            results.append({"Fold": fold, "MSE": mse, "RMSPE": rmspe})
-        results = pd.DataFrame(results)
+        results = cv_reg_stats(all_preds, n_splits, target,
+                               ln_target, sqr_target)
         results.to_csv(os.path.join(
             output_dir, "%s_%s_results.csv"%(model_prefix, now)), index=False) 
                 
-    return model, all_preds
+    return model, all_preds 

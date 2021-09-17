@@ -12,9 +12,53 @@ def rmspe_calc(y_true, y_pred):
     """
     return np.sqrt(np.mean(((y_true-y_pred)/y_true) ** 2))
 
+def cv_reg_stats(preds, n_splits, target, ln_target, sqr_target):
+    """
+    """
+    results = []
+    for f in range(n_splits+1):
+        if f == 0:
+            pred_df = preds.copy()
+            fold = "All"
+        else:
+            pred_df = preds.query("fold == @f").copy()
+            fold = "Fold_" + str(f)
+        
+        mse = np.mean(np.square(pred_df[target] - pred_df["pred"]))
+        for c in ["pred", target]:
+            if ln_target:
+                pred_df.loc[:, c] = np.exp(pred_df[c])
+            else:
+                pred_df.loc[:, c] = pred_df[c] + 1
+            if sqr_target:
+                pred_df.loc[:, c] = np.sqrt(pred_df[c])
+        rmspe = rmspe_calc(pred_df[target], pred_df["pred"])
+        
+        results.append({"Fold": fold, "MSE": mse, "RMSPE": rmspe})
+        
+    return pd.DataFrame(results)   
+
+def predict_target(eval_df, model, quantile=None,
+                   key_cols=["stock_id", "time_id"],
+                   eval_cols=["target_chg"]):
+    """
+    """
+    # copy eval_df frame
+    df = eval_df.copy()[key_cols + eval_cols]
+
+    # derive predcol name
+    pred_col = "pred"
+    if quantile is not None:
+        pred_col += "_%d"%(int(100*quantile))
+    
+    # insert preds
+    df.loc[:, pred_col] = model.predict(eval_df[model.feature_name()])
+    return df
+    
+
 def predict_target_class(eval_df, model,
-                         eval_cols=["stock_id", "time_id", 
-                                    "target_chg", "target_class"]):
+                         key_cols=["stock_id", "time_id"],
+                         eval_cols=["target_chg", "target_class"]):
     """
     Predict target class using LGBM classifier.
     """

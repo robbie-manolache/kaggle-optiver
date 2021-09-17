@@ -45,6 +45,58 @@ def compute_ratio(df, numer_vars, denom_vars, new_names,
         
         for v, d, n in zip(numer_vars, denom_vars, new_names):
             __ratio__(df, v, d, n, log, epsi)
+
+def seg_based_feats(df, seg_df, feat_func="std",
+                    var_names="AUTO", new_names="AUTO"):
+    """
+    """
+    
+    if var_names == "AUTO":
+        var_names = [c for c in seg_df.columns if c not in 
+                     ["stock_id", "time_id", "segment"]]
+    
+    if feat_func == "std":
+        new_df = seg_df.groupby(["stock_id", "time_id"])[var_names].std()
+    elif feat_func == "max":
+        new_df = seg_df.groupby(["stock_id", "time_id"])[var_names].max()
+    elif feat_func == "min":
+        new_df = seg_df.groupby(["stock_id", "time_id"])[var_names].min()
+    elif feat_func == "max.min":
+        max_df = seg_df.groupby(["stock_id", "time_id"])[var_names].max()
+        min_df = seg_df.groupby(["stock_id", "time_id"])[var_names].min()
+        new_df = max_df - min_df
+    else:
+        print("Not yet implemented :(")
+        
+    if new_names == "AUTO":
+        new_names = [c + "_seg_" + feat_func for c in new_df.columns]
+        
+    new_df.columns = new_names
+    
+    return df.join(new_df, on=["stock_id", "time_id"]) 
+
+def seg_based_change(df, seg_df, var_names="AUTO", new_names="AUTO",
+                     seg_ranges=[[0,2], [2,4]], epsi=1e-8):
+    """
+    """
+    
+    if var_names == "AUTO":
+        var_names = [c for c in seg_df.columns if c not in 
+                     ["stock_id", "time_id", "segment"]]
+    
+    seg_0 = seg_df.query("%d <= segment <= %d"%tuple(seg_ranges[0])
+                         ).groupby(["stock_id", "time_id"])[var_names].mean()
+    seg_1 = seg_df.query("%d <= segment <= %d"%tuple(seg_ranges[1])
+                         ).groupby(["stock_id", "time_id"])[var_names].mean()
+    chg_df = seg_1 / (seg_0 + epsi)
+    
+    if new_names == "AUTO":
+        suffix = "_%d.%d_to_%d.%d"%tuple(seg_ranges[0] + seg_ranges[1])
+        new_names = [c + suffix for c in chg_df.columns]
+        
+    chg_df.columns = new_names
+    
+    return df.join(chg_df, on=["stock_id", "time_id"])   
             
 def stock_embed_index(df, name=["embed_index"]):
     """
@@ -52,7 +104,7 @@ def stock_embed_index(df, name=["embed_index"]):
     n_stocks = df["stock_id"].nunique()
     stock_map = dict(zip(df["stock_id"].unique(), list(range(n_stocks))))
     df.loc[:, name] = df["stock_id"].map(stock_map)
- 
+
 def gen_target_change(df, target_col="target", rvol_col="WAP1_lnret_vol_all",
                       name="target_chg", pwr_adj=(1, 0.5), 
                       log_change=True, reverse=False):
@@ -68,14 +120,6 @@ def gen_target_change(df, target_col="target", rvol_col="WAP1_lnret_vol_all",
     else:
         df.loc[:, name] = df[name] - 1
 
-def gen_weights(df, power=0.1, pwr_adj=(1, 0.5),
-                target_col="target", rvol_col="WAP1_lnret_vol_all"):
-    """
-    """
-    df.loc[:, "weight"] = np.abs(((df[target_col]**pwr_adj[0]) - 
-                                  (df[rvol_col]**pwr_adj[1]))/
-                                 (df[target_col]**pwr_adj[0]))**power
-
 def gen_target_class(df, in_col='target_chg', out_col='target_class',
                      splits=[-0.5, -0.05, 0.05, 0.5]):
     """
@@ -89,6 +133,19 @@ def gen_target_class(df, in_col='target_chg', out_col='target_class',
     df.loc[:, out_col] = pd.cut(df[in_col], bins=splits, 
                                 labels=list(range(len(splits)-1))
                                 ).astype(int) 
+
+def gen_weights(df, method="inv_target",
+                power=0.5, pwr_adj=(1, 0.5),
+                target_col="target", rvol_col="WAP1_lnret_vol_all"):
+    """
+    method: one of "inv_target", "target_chg"
+    """
+    if method == "inv_target":
+        df.loc[:, "weight"] = (1/df[target_col])**power
+    else:
+        df.loc[:, "weight"] = np.abs(((df[target_col]**pwr_adj[0]) - 
+                                    (df[rvol_col]**pwr_adj[1]))/
+                                    (df[target_col]**pwr_adj[0]))**power
 
 def standardize(df, group_var="stock_id",
                 excl_vars=["stock_id", "time_id", "target", "target_chg", "weight"],
@@ -130,7 +187,8 @@ def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
     else:
         return x
          
-def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
+def final_feature_pipe(df, aux_df=None,
+                       pipeline=[], task="reg", output_dir=None):
     """
     """
     
@@ -138,12 +196,20 @@ def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
         "square_vars": square_vars,
         "interact_vars": interact_vars,
         "compute_ratio": compute_ratio,
+        "seg_based_feats": seg_based_feats,
+        "seg_based_change": seg_based_change,
         "stock_embed_index": stock_embed_index,
         "agg_by_time_id": agg.agg_by_time_id,
         "gen_target_change": gen_target_change,
         "gen_target_class": gen_target_class,
         "gen_weights": gen_weights,
         "standardize": standardize
+    }
+    
+    # data mapping
+    data_dict = {
+        "df": df.copy(),
+        "aux_df": aux_df.copy()
     }
     
     # iterate through pipeline
@@ -159,10 +225,16 @@ def final_feature_pipe(df, pipeline=[], task="reg", output_dir=None):
             args = pl["args"]
             
         # perform in place or assign to output object
-        func(df, **args)  
+        if "input" in pl.keys():
+            data_dict["df"] = func(*[data_dict[d] for d in pl["input"]], 
+                                   **args)
+        else:
+            func(data_dict["df"], **args)  
         
     if output_dir is not None:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
         with open(os.path.join(
             output_dir, "final_proc_%s_%s.json"%(task, now)), "w") as wf:
-            json.dump(pipeline, wf)                    
+            json.dump(pipeline, wf)  
+            
+    return data_dict["df"]                  
