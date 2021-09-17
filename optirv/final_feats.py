@@ -162,9 +162,9 @@ def standardize(df, group_var="stock_id",
         if (std_df == 0).sum().sum() > 0:
             std_df[std_df == 0] = 1
     else:
-        mean_df = pd.read_csv(os.path.join(output_dir, "mean.csv"), 
+        mean_df = pd.read_csv(os.path.join(input_dir, "mean.csv"), 
                               index_col=group_var)
-        std_df = pd.read_csv(os.path.join(output_dir, "st_dev.csv"), 
+        std_df = pd.read_csv(os.path.join(input_dir, "st_dev.csv"), 
                              index_col=group_var)
     
     if output_dir is not None:
@@ -187,11 +187,12 @@ def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
     else:
         return x
          
-def final_feature_pipe(df, aux_df=None,
+def final_feature_pipe(df, aux_df=None, training=True,
                        pipeline=[], task="reg", output_dir=None):
     """
     """
     
+    # function mapping
     func_map= {
         "square_vars": square_vars,
         "interact_vars": interact_vars,
@@ -206,6 +207,9 @@ def final_feature_pipe(df, aux_df=None,
         "standardize": standardize
     }
     
+    # train-only functions
+    train_only = ["gen_weights", "gen_target_change", "gen_target_class"]
+    
     # data mapping
     data_dict = {
         "df": df.copy(),
@@ -215,22 +219,28 @@ def final_feature_pipe(df, aux_df=None,
     # iterate through pipeline
     for pl in pipeline:
         
-        # get function object to apply
-        func = __get_func__(pl["func"], func_map)
+        # skip training-only functions in prediction mode
+        if not training and pl["func"] in train_only:
+            pass
         
-        # set optional arguments
-        if pl["args"] is None:
-            args = {}
         else:
-            args = pl["args"]
+        
+            # get function object to apply
+            func = __get_func__(pl["func"], func_map)
             
-        # perform in place or assign to output object
-        if "input" in pl.keys():
-            data_dict["df"] = func(*[data_dict[d] for d in pl["input"]], 
-                                   **args)
-        else:
-            func(data_dict["df"], **args)  
-        
+            # set optional arguments
+            if pl["args"] is None:
+                args = {}
+            else:
+                args = pl["args"]
+                
+            # perform in place or assign to output object
+            if "input" in pl.keys():
+                data_dict["df"] = func(*[data_dict[d] for d 
+                                        in pl["input"]], **args)
+            else:
+                func(data_dict["df"], **args)  
+            
     if output_dir is not None:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
         with open(os.path.join(

@@ -12,7 +12,7 @@ def rmspe_calc(y_true, y_pred):
     """
     return np.sqrt(np.mean(((y_true-y_pred)/y_true) ** 2))
 
-def cv_reg_stats(preds, n_splits, target, ln_target, sqr_target):
+def cv_reg_stats(preds, n_splits, target, ln_target, sqr_target, mode="test"):
     """
     """
     results = []
@@ -29,12 +29,14 @@ def cv_reg_stats(preds, n_splits, target, ln_target, sqr_target):
             if ln_target:
                 pred_df.loc[:, c] = np.exp(pred_df[c])
             else:
-                pred_df.loc[:, c] = pred_df[c] + 1
+                if target != "target":
+                    pred_df.loc[:, c] = pred_df[c] + 1
             if sqr_target:
                 pred_df.loc[:, c] = np.sqrt(pred_df[c])
         rmspe = rmspe_calc(pred_df[target], pred_df["pred"])
         
-        results.append({"Fold": fold, "MSE": mse, "RMSPE": rmspe})
+        results.append({"Fold": fold, "Mode": mode,
+                        "RMSE": np.sqrt(mse), "MSE": mse, "RMSPE": rmspe})
         
     return pd.DataFrame(results)   
 

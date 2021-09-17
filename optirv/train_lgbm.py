@@ -165,6 +165,10 @@ def lgbm_CV(df, config,
                                 output_dir=output_dir,
                                 save_model=True, time_stamp=now)
     
+    # add folds to in-sample preds for comparison
+    pred_df = pred_df.merge(all_preds[["stock_id", "time_id", "fold"]], 
+                            on=["stock_id", "time_id"])
+    
     if output_dir is not None:
         
         # get target name
@@ -182,8 +186,12 @@ def lgbm_CV(df, config,
                
         # regression eval stats         
         elif config["params"]["objective"] == "rmse":
-            results = cv_reg_stats(all_preds, n_splits, target,
-                                   ln_target, sqr_target)
+            results = pd.concat(
+                [cv_reg_stats(all_preds, n_splits, target, 
+                              ln_target, sqr_target, "test"),
+                 cv_reg_stats(pred_df, n_splits, target, 
+                              ln_target, sqr_target, "train")],
+                ignore_index=True)
             results.to_csv(os.path.join(
                 output_dir, "%s_%s_results.csv"%(model_prefix, now)), index=False) 
         
