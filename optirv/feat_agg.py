@@ -40,21 +40,3 @@ def gen_distribution_stats(base,
             stock_cs = stock_cs.join(pct_temp, on=dist_unit)
 
     return stock_cs
-
-def gen_outliers_threshold(trade_df,
-                     dist_unit = ["stock_id"],
-                     var_names=["size"],
-                     percentile_spec=[98, 99]):
-    """
-    base is at trade_df
-    
-    """
-    df = trade_df[["stock_id"]].drop_duplicates()
-    
-    for v in var_names:
-        for i in percentile_spec:
-            pct_temp = trade_df.groupby(dist_unit, observed=True)[v].apply(
-                       lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
-            df = df.join(pct_temp, on=dist_unit)
-
-    return df
