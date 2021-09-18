@@ -148,7 +148,17 @@ def gen_weights(df, method="inv_target",
                                     (df[rvol_col]**pwr_adj[1]))/
                                     (df[target_col]**pwr_adj[0]))**power
 
-def standardize_by_stock(df, stock_df, std_only=False,
+def add_stock_vars(df, stock_df, var_names, merge_on=["stock_id"]):
+    """
+    """
+    return df.merge(stock_df[merge_on + var_names], on=merge_on)
+
+def drop_vars(df, var_names):
+    """
+    """
+    df.drop(var_names, axis=1, inplace=True)
+
+def standardize_by_stock(df, stock_df, std_only=False, var_names=None,
                          excl_vars=["stock_id", "time_id", "target", "target_std",
                                     "target_chg", "weight", "segment"],
                          df_keys=["stock_id", "time_id"]):
@@ -156,7 +166,10 @@ def standardize_by_stock(df, stock_df, std_only=False,
     """
     
     # select cols to standardize
-    x_cols = [c for c in df.columns if c not in excl_vars]
+    if var_names is None:
+        x_cols = [c for c in df.columns if c not in excl_vars]
+    else:
+        x_cols = var_names
     frame_df = df[df_keys].copy()
     
     # extract means
@@ -224,6 +237,8 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
         "gen_target_change": gen_target_change,
         "gen_target_class": gen_target_class,
         "gen_weights": gen_weights,
+        "add_stock_vars": add_stock_vars,
+        "drop_vars": drop_vars,
         "standardize_by_stock": standardize_by_stock,
         "standardize_target": standardize_target
     }

@@ -16,9 +16,9 @@ from optirv.feat_eng import add_real_vol_cols, compute_BPV_retquad, \
     gen_weighted_var, gen_last_obs, gen_trade_stats, gen_var_relto_dist
 from optirv.final_feats import square_vars, interact_vars, compute_ratio, \
     stock_embed_index, gen_target_class, gen_target_change, gen_weights, \
-    standardize_by_stock, standardize_target,\
+    add_stock_vars, standardize_by_stock, standardize_target, \
     reshape_segments, seg_based_change, seg_based_feats, \
-    final_feature_pipe
+    drop_vars, final_feature_pipe
 from optirv.feat_agg import agg_by_time_id, agg_by_stock_id, gen_distribution_stats, \
     gen_outliers_threshold
 from optirv.data_pipes import gen_seg_base, feat_eng_pipeline
