@@ -12,7 +12,8 @@ def rmspe_calc(y_true, y_pred):
     """
     return np.sqrt(np.mean(((y_true-y_pred)/y_true) ** 2))
 
-def cv_reg_stats(preds, n_splits, target, ln_target, sqr_target, mode="test"):
+def cv_reg_stats(preds, n_splits, target,
+                 pred_col="pred", mode="test"):
     """
     """
     results = []
@@ -24,19 +25,11 @@ def cv_reg_stats(preds, n_splits, target, ln_target, sqr_target, mode="test"):
             pred_df = preds.query("fold == @f").copy()
             fold = "Fold_" + str(f)
         
-        mse = np.mean(np.square(pred_df[target] - pred_df["pred"]))
-        for c in ["pred", target]:
-            if ln_target:
-                pred_df.loc[:, c] = np.exp(pred_df[c])
-            else:
-                if target != "target":
-                    pred_df.loc[:, c] = pred_df[c] + 1
-            if sqr_target:
-                pred_df.loc[:, c] = np.sqrt(pred_df[c])
-        rmspe = rmspe_calc(pred_df[target], pred_df["pred"])
-        
+        mse = np.mean(np.square(pred_df[target] - pred_df[pred_col]))
+        mape = np.mean(np.abs(pred_df[target] - pred_df[pred_col]))
+        rmspe = rmspe_calc(pred_df[target], pred_df[pred_col])       
         results.append({"Fold": fold, "Mode": mode,
-                        "RMSE": np.sqrt(mse), "MSE": mse, "RMSPE": rmspe})
+                        "RMSE": np.sqrt(mse), "MAPE": mape, "RMSPE": rmspe})
         
     return pd.DataFrame(results)   
 
@@ -56,7 +49,24 @@ def predict_target(eval_df, model, quantile=None,
     # insert preds
     df.loc[:, pred_col] = model.predict(eval_df[model.feature_name()])
     return df
-    
+
+def adjust_preds(df, norm_df, min_rv=0.00011, sqr_target=True):
+    """
+    """
+    df = df.merge(norm_df, on=["stock_id"], how="left")
+
+    df.loc[:, "pred_adj"] = df["pred"] * df["std"]
+    df.drop("std", axis=1)
+
+    if "mean" in norm_df.columns:
+        df.loc[:, "pred_adj"] = df["pred_adj"] + df["mean"]
+        df.drop("mean", axis=1)
+        
+    df.loc[df["pred_adj"]<(0.5*min_rv), "pred_adj"] = min_rv
+    if sqr_target:
+        df.loc[:, "pred_adj"] = np.sqrt(df["pred_adj"])
+        
+    return df   
 
 def predict_target_class(eval_df, model,
                          key_cols=["stock_id", "time_id"],

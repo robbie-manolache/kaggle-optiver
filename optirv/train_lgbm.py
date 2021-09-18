@@ -6,11 +6,14 @@
 import os
 import json
 from datetime import datetime
+from lightgbm.engine import train
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
+from pandas.core.reshape.concat import concat
+from optirv import eval_tools
 from optirv.eval_tools import predict_target, predict_target_class, \
-    multi_log_loss, cv_reg_stats
+    adjust_preds, multi_log_loss, cv_reg_stats
 from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score
 
@@ -81,6 +84,11 @@ def train_lgbm_model(config,
                       categorical_feature=x_cats,
                       verbose_eval=verbose)
     
+    # set up eval_cols
+    eval_cols = [target]
+    if "target" not in eval_cols:
+        eval_cols.append("target")
+    
     # generate predictions
     if params["objective"] == "multiclass":
         if valid_df is None:      
@@ -89,15 +97,15 @@ def train_lgbm_model(config,
             pred_df = predict_target_class(valid_df, model)
     elif params["objective"] == "rmse":
         if valid_df is None:      
-            pred_df = predict_target(train_df, model, eval_cols=[target])
+            pred_df = predict_target(train_df, model, eval_cols=eval_cols)
         else:
-            pred_df = predict_target(valid_df, model, eval_cols=[target])
+            pred_df = predict_target(valid_df, model, eval_cols=eval_cols)
     elif params["objective"] == "quantile":
         if valid_df is None:      
-            pred_df = predict_target(train_df, model, eval_cols=[target], 
+            pred_df = predict_target(train_df, model, eval_cols=eval_cols, 
                                      alpha=params["alpha"])
         else:
-            pred_df = predict_target(valid_df, model, eval_cols=[target], 
+            pred_df = predict_target(valid_df, model, eval_cols=eval_cols, 
                                      alpha=params["alpha"])
     
     # save outputs as required
@@ -118,10 +126,10 @@ def train_lgbm_model(config,
             
     return model, pred_df
 
-def lgbm_CV(df, config,
+def lgbm_CV(df, config, norm_df=None,
             train_func="train_lgbm_model",
-            n_splits=5, split_seed=42,
-            ln_target=True, sqr_target=False,
+            n_splits=5, split_seed=42, 
+            sqr_target=True, min_rv=0.00011,
             model_prefix="lgbm", output_dir=None):
     """
     """
@@ -132,10 +140,17 @@ def lgbm_CV(df, config,
     }
     train_func = func_dict[train_func]
     
+    # get target name and set up eval_cols
+    target = config["target"]
+    eval_cols = [target]
+    if "target" not in eval_cols:
+        eval_cols.append("target")
+    
     # setup
     time_ids = df["time_id"].unique()
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
     all_preds = []
+    train_stats = []
     fold_num = 0
     
     # iterate thru the folds
@@ -148,11 +163,31 @@ def lgbm_CV(df, config,
         
         # train model
         model, pred_df = train_func(config, train_df, valid_df)
-
+        
         # capture preds
         fold_num += 1
         pred_df.loc[:, "fold"] = fold_num
         all_preds.append(pred_df)
+        
+        # include training stats
+        if config["params"]["objective"] == "rmse":
+            train_cv = predict_target(train_df, model, eval_cols=eval_cols)
+            train_cv.loc[:, "Fold"] = fold_num
+            
+            # adjust for any standardization
+            if norm_df is not None:
+                train_cv = adjust_preds(train_cv, norm_df, min_rv, sqr_target)                
+                pred_col = "pred_adj"
+            else:
+                pred_col = "pred"                 
+            
+            # calculate metrics and append
+            train_cv = cv_reg_stats(train_cv, 0, target="target",  
+                                    pred_col=pred_col, mode="train-cv")
+            train_stats.append(train_cv)
+            print("RMSE: %.4f | MAPE: %.4f | RMSPE %.4f"%tuple(
+                train_cv.loc[0, ["RMSE", "MAPE", "RMSPE"]]))
+        
         print("|%s Fold %d complete! %s|"%("-"*25, fold_num, "-"*25))
         
     # compile all_preds
@@ -169,10 +204,13 @@ def lgbm_CV(df, config,
     pred_df = pred_df.merge(all_preds[["stock_id", "time_id", "fold"]], 
                             on=["stock_id", "time_id"])
     
+    # adjust for any standardization
+    if norm_df is not None:
+        pred_df = adjust_preds(pred_df, norm_df, min_rv, sqr_target)
+        all_preds = adjust_preds(all_preds, norm_df, min_rv, sqr_target)
+    
+    # save outputs if not none
     if output_dir is not None:
-        
-        # get target name
-        target = config["target"]
         
         # classification eval stats
         if config["params"]["objective"] == "multiclass":
@@ -187,10 +225,11 @@ def lgbm_CV(df, config,
         # regression eval stats         
         elif config["params"]["objective"] == "rmse":
             results = pd.concat(
-                [cv_reg_stats(all_preds, n_splits, target, 
-                              ln_target, sqr_target, "test"),
-                 cv_reg_stats(pred_df, n_splits, target, 
-                              ln_target, sqr_target, "train")],
+                [cv_reg_stats(all_preds, n_splits, target="target",  
+                              pred_col=pred_col, mode="test"),
+                 pd.concat(train_stats, ignore_index=True),
+                 cv_reg_stats(pred_df, n_splits, target="target",  
+                              pred_col=pred_col, mode="train-all")],
                 ignore_index=True)
             results.to_csv(os.path.join(
                 output_dir, "%s_%s_results.csv"%(model_prefix, now)), index=False) 
