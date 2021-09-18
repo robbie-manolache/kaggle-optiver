@@ -44,6 +44,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         "compute_lnret": pp.compute_lnret,
         "gen_segments_by_obs": pp.gen_segments_by_obs,
         "gen_segments_by_time": pp.gen_segments_by_time,
+        "gen_outliers_threshold": pp.gen_outliers_threshold,
+        "gen_outlier_flags": pp.gen_outlier_flags,
         
         # Intermediary
         "gen_seg_base": gen_seg_base,
@@ -53,6 +55,7 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         "compute_BPV_retquad": fe.compute_BPV_retquad,
         "gen_weighted_var": fe.gen_weighted_var,
         "gen_trade_stats": fe.gen_trade_stats,
+        "gen_adj_trade_stats": fe.gen_adj_trade_stats,
         "gen_last_obs": fe.gen_last_obs
         
     }
