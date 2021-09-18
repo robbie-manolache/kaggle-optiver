@@ -3,6 +3,7 @@
 # Feature finalization # -=-=-=-=-=-=-=-=-=-= #
 # -=-=-=-=-=-=-=-=-=-= # -=-=-=-=-=-=-=-=-=-= #
 
+from operator import index
 import os
 import json
 from datetime import datetime
@@ -147,34 +148,64 @@ def gen_weights(df, method="inv_target",
                                     (df[rvol_col]**pwr_adj[1]))/
                                     (df[target_col]**pwr_adj[0]))**power
 
-def standardize(df, group_var="stock_id",
-                excl_vars=["stock_id", "time_id", "target", "target_chg", "weight"],
-                df_keys=["stock_id", "time_id"], 
-                input_dir=None, output_dir=None):
+def add_stock_vars(df, stock_df, var_names, merge_on=["stock_id"]):
+    """
+    """
+    return df.merge(stock_df[merge_on + var_names], on=merge_on)
+
+def drop_vars(df, var_names):
+    """
+    """
+    df.drop(var_names, axis=1, inplace=True)
+
+def standardize_by_stock(df, stock_df, std_only=False, var_names=None,
+                         excl_vars=["stock_id", "time_id", "target", "target_std",
+                                    "target_chg", "weight", "segment"],
+                         df_keys=["stock_id", "time_id"]):
     """
     """
     
-    x_cols = [c for c in df.columns if c not in excl_vars]
-    
-    if input_dir is None:
-        mean_df = df.groupby(group_var)[x_cols].mean()
-        std_df = df.groupby(group_var)[x_cols].std()
-        if (std_df == 0).sum().sum() > 0:
-            std_df[std_df == 0] = 1
+    # select cols to standardize
+    if var_names is None:
+        x_cols = [c for c in df.columns if c not in excl_vars]
     else:
-        mean_df = pd.read_csv(os.path.join(input_dir, "mean.csv"), 
-                              index_col=group_var)
-        std_df = pd.read_csv(os.path.join(input_dir, "st_dev.csv"), 
-                             index_col=group_var)
+        x_cols = var_names
+    frame_df = df[df_keys].copy()
     
-    if output_dir is not None:
-        mean_df.to_csv(os.path.join(output_dir, "mean.csv"))
-        std_df.to_csv(os.path.join(output_dir, "st_dev.csv"))
-        
-    mean_df = df[df_keys].join(mean_df, on=group_var)
-    std_df = df[df_keys].join(std_df, on=group_var)
+    # extract means
+    if not std_only:
+        mean_df = frame_df.merge(
+            stock_df[["stock_id"] + [c + "_mean" for c in x_cols]], 
+            on=["stock_id"]).drop(columns=df_keys)
+        mean_df.columns = x_cols
     
-    df.loc[:, x_cols] = (df[x_cols]-mean_df[x_cols])/std_df[x_cols]
+    # extract st. dev.
+    std_df = frame_df.merge(
+        stock_df[["stock_id"] + [c + "_std" for c in x_cols]], 
+        on=["stock_id"]).drop(columns=df_keys)
+    std_df.columns = x_cols
+    
+    # standardize
+    if std_only:
+        df.loc[:, x_cols] = df[x_cols]/std_df
+    else:
+        df.loc[:, x_cols] = (df[x_cols]-mean_df)/std_df
+    return df
+
+def standardize_target(df, stock_df, square=True,
+                       norm_var="WAP1_lnret_vol_all"):
+    """
+    """
+    if square:
+        pwr = 2
+    else:
+        pwr = 1
+    norm_df = df[["stock_id", "time_id", "target"]].copy()
+    norm_df = norm_df.merge(stock_df[["stock_id", norm_var+"_mean", 
+                                      norm_var+"_std"]], on=["stock_id"])
+    df.loc[:, "target_std"] = (norm_df["target"]**pwr - norm_df[norm_var+"_mean"]
+                               ) / norm_df[norm_var+"_std"]
+    return df
 
 def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
                      add_extra_axis=False):
@@ -187,13 +218,13 @@ def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
     else:
         return x
          
-def final_feature_pipe(df, aux_df=None, training=True,
+def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
                        pipeline=[], task="reg", output_dir=None):
     """
     """
     
     # function mapping
-    func_map= {
+    func_map = {
         "square_vars": square_vars,
         "interact_vars": interact_vars,
         "compute_ratio": compute_ratio,
@@ -201,20 +232,32 @@ def final_feature_pipe(df, aux_df=None, training=True,
         "seg_based_change": seg_based_change,
         "stock_embed_index": stock_embed_index,
         "agg_by_time_id": agg.agg_by_time_id,
+        "agg_by_stock_id": agg.agg_by_stock_id,
+        "gen_distribution_stats": agg.gen_distribution_stats,
         "gen_target_change": gen_target_change,
         "gen_target_class": gen_target_class,
         "gen_weights": gen_weights,
-        "standardize": standardize
+        "add_stock_vars": add_stock_vars,
+        "drop_vars": drop_vars,
+        "standardize_by_stock": standardize_by_stock,
+        "standardize_target": standardize_target
     }
     
     # train-only functions
-    train_only = ["gen_weights", "gen_target_change", "gen_target_class"]
+    train_only = ["gen_weights", "gen_target_change", "gen_target_class",
+                  "agg_by_stock_id", "gen_distribution_stats",
+                  "standardize_target"]
     
     # data mapping
     data_dict = {
         "df": df.copy(),
         "aux_df": aux_df.copy()
     }
+    if stock_df is not None:
+        data_dict["stock"] = stock_df.copy()
+    
+    # record time
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # iterate through pipeline
     for pl in pipeline:
@@ -240,9 +283,16 @@ def final_feature_pipe(df, aux_df=None, training=True,
                                         in pl["input"]], **args)
             else:
                 func(data_dict["df"], **args)  
+                
+            # add any interim outputs and save
+            if "output" in pl.keys():
+                data_dict[pl["output"]] = func(data_dict["df"], **args)
+                if pl["output"] == "stock" and output_dir is not None:
+                    data_dict[pl["output"]].to_csv(os.path.join(
+                        output_dir, "stocks_%s_%s.csv"%(task, now)
+                    ), index=False)               
             
     if output_dir is not None:
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
         with open(os.path.join(
             output_dir, "final_proc_%s_%s.json"%(task, now)), "w") as wf:
             json.dump(pipeline, wf)  
