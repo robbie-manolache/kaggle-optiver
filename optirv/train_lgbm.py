@@ -184,6 +184,7 @@ def lgbm_CV(df, config, norm_df=None,
             # calculate metrics and append
             train_cv = cv_reg_stats(train_cv, 0, target="target",  
                                     pred_col=pred_col, mode="train-cv")
+            train_cv.loc[:, "Fold"] = "Fold_%d"%fold_num
             train_stats.append(train_cv)
             print("RMSE: %.4f | MAPE: %.4f | RMSPE %.4f"%tuple(
                 train_cv.loc[0, ["RMSE", "MAPE", "RMSPE"]]))
