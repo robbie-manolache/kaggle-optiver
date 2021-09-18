@@ -32,6 +32,10 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
         # trades are to be compared to OB in the prior second
         df.loc[:, "price_f1"] = df["price"].shift(-1)
         df.loc[:, "size_f1"] = df["size"].shift(-1)
+        df.loc[:, "size_l1"] = df["size"].shift(1)
+
+        for size_col in ["size", "size_l1", "size_f1"]:
+            df.loc[:, size_col] = df[size_col].fillna(0)
 
     else:
         # fwdfill missing trade prices then backfill if missing at start
@@ -68,38 +72,57 @@ def gen_merged_book_trade_var(df):
 
     return
 
+def gen_outliers_threshold(trade_df,
+                     dist_unit = ["stock_id"],
+                     var_names=["size"],
+                     percentile_spec=[98, 99]):
+    """
+    
+    """
+    df = trade_df[["stock_id"]].drop_duplicates()
+    
+    for v in var_names:
+        for i in percentile_spec:
+            pct_temp = trade_df.groupby(dist_unit, observed=True)[v].apply(
+                       lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
+            df = df.join(pct_temp, on=dist_unit)
+
+    return df
+
 def gen_outlier_flags(df, outliers_df,
+                      varnames = ["WAP1_lnret", "size", "order_count"],
                       dist_unit = ["stock_id"],
                       percentile_spec=[98, 99]):
 
     """
     df is merged book trade, after gen_merged_book_trade_var
-    outliers_df is generated from feat_agg.gen_outliers_threshold
+    outliers_df is generated from gen_outliers_threshold
+    percentile_spec has to be the same as that used in gen_outliers_threshold
     """
     bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
                                                   "bid_size1", "ask_size1"]]
     
     df = df.merge(outliers_df, on = dist_unit)
-    df.loc[:, "size_l1"] = df["size"].shift(1)
-    for size_col in ["size", "size_l1", "size_f1"]:
-        df.loc[:, size_col] = df[size_col].fillna(0)
+    
+    df.loc[:, "size_add"] = df["size"] + df["size_f1"] + df["size_l1"]
 
-    df.loc[:, "size_adj"] = df["size"] + df["size_f1"] + df["size_l1"]
     df.loc[:, "WAP1"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
-    df.loc[:, "WAP1_l1"] = df["WAP1"].shift(1)
-    df.loc[:, "WAP1_l2"] = df["WAP1"].shift(2)
+    ln_ret = np.log(df["WAP1"]/df["WAP1"].shift(1))
+    df.loc[:, "WAP1_lnret"] =  ln_ret 
+    df.loc[df["sec"]==0, "WAP1_lnret"] = np.nan       
 
     for i in percentile_spec:
 
-            threshold = "size" + "pct_%d"%i
-            outlier_flag_name = "outlier_flag_%d"%i
-            WAP1_adj_name = "WAP1_adj_%d"%i
-            outliers = (df["size_adj"] >= df[threshold])
+        threshold = "size" + "_pct_%d"%i
+        outlier_flag_name = "outlier_flag_%d"%i
+        
+        outliers = (df["size_add"] >= df[threshold])
+        df.loc[:, outlier_flag_name] = outliers
 
-            df.loc[:, outlier_flag_name] = outliers
-            df.loc[:, WAP1_adj_name] = df["WAP1"]            
-            df.loc[outliers, WAP1_adj_name] = np.nan
-            df.loc[:, WAP1_adj_name] = df[WAP1_adj_name].ffill()                   
+        for v in varnames:
+            adj_var_name = v + "_adj_%d"%i
+            df.loc[:, adj_var_name] = df[v]            
+            df.loc[outliers, adj_var_name] = 0    
 
     return df
 
@@ -119,7 +142,7 @@ def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     df.loc[:, "midquote1"] = (bidP1 + askP1)/2
     df.loc[:, "midquote2"] = (bidP2 + askP2)/2
 
-    df.loc[:, "max_sec"] = df.groupby(["stock_id", "time_id"], 
+    df.loc[:, "max_sec"] = df.groupby(group_cols, 
                                       observed=True)["sec"].transform("max")
     df.loc[:, "sec_f1"] = df["sec"].shift(-1)
     df.loc[df["sec"]==df["max_sec"], "sec_f1"] = 600
@@ -154,8 +177,8 @@ def gen_ob_var(df):
     bidP1, askP1, bidQ1, askQ1, m1 = [df[c+"1"] for c in cols]
     bidP2, askP2, bidQ2, askQ2, m2 = [df[c+"2"] for c in cols]
 
-    df.loc[:, "depth_1"] = askQ1*askP1 + bidQ1*bidP1
-    df.loc[:, "depth_2"] = askQ2*askP2 + bidQ2*bidP2
+    df.loc[:, "depth_1"] = askQ1 + bidQ1
+    df.loc[:, "depth_2"] = askQ2 + bidQ2
     df.loc[:, "depth_total"] =  df["depth_1"] + df["depth_2"]
     df.loc[:, "ratio_depth1_2"] = (askQ1 + bidQ1)/(askQ2 + bidQ2)
     df.loc[:, "ratio_a_bdepth1"] = askQ1/bidQ1
@@ -168,12 +191,17 @@ def gen_ob_var(df):
     df.loc[:, "ratio_askP"] = askP2/askP1
     df.loc[:, "ratio_bidP"] = bidP1/bidP2
 
+    df.loc[:, "midquote1_diff"] = (df.groupby(["stock_id", "time_id"])["bid_price1"].diff() != 0) \
+                                | (df.groupby(["stock_id", "time_id"])["ask_price1"].diff() != 0)
+    df.loc[df["sec"]==0, "midquote1_diff"] = False
+
     return
 
 def compute_lnret(df, varnames=["WAP1", "WAP2"], 
                   group_cols=["stock_id", "time_id"],
-                  power=[1], absolute=[1]):
+                  power=[1], absolute=[]):
     """
+    df = book_df
     power:      list of powers used to further transform log returns 
     absolute:   list of powers for which to take absolute value 
                 after transforming log returns by that power
@@ -211,7 +239,7 @@ def gen_trade_var(df, group_cols=["stock_id", "time_id"]):
     df: trade_df
     """
     
-    df.loc[:, "max_sec"] = df.groupby(["stock_id", "time_id"], 
+    df.loc[:, "max_sec"] = df.groupby(group_cols, 
                                       observed=True)["sec"].transform("max")
     df.loc[:, "sec_f1"] = df["sec"].shift(-1)
     df.loc[df["sec"]==df["max_sec"], "sec_f1"] = 600
