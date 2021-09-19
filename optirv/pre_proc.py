@@ -50,33 +50,48 @@ def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
     return df
 
 
-def gen_merged_book_trade_var(df):
+def gen_merged_book_trade_var(df, group_cols = ["stock_id", "time_id"],
+                              varnames = ["bid_size1", "ask_size1", "depth_1"]):
     """
     df: merged book and trade
     generate variables from merged data between trade and book data
     """
-    bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
-                                                  "bid_size1", "ask_size1"]]
-    bidP2, askP2, bidQ2, askQ2 = [df[c] for c in ["bid_price2", "ask_price2", 
-                                                  "bid_size2", "ask_size2"]]
-    price, size, price_f1, size_f1 = [df[c] for c in ["price", "size", "price_f1", "size_f1"]]
+    bidP1, askP1, bidQ1, askQ1, bidQ2, askQ2, size, size_f1 = [df[c] for c in \
+        ["bid_price1", "ask_price1", "bid_size1", "ask_size1",
+         "bid_size2", "ask_size2", "size", "size_f1"]]
 
     df.loc[:, "m1"] = (bidP1 + askP1)/2
+    df.loc[:, "min_sec"] = df.groupby(group_cols, 
+                                      observed=True)["sec"].transform("min") 
 
-    sec0 = (df["sec"] == 0)
+    df.loc[df["sec"]==df["min_sec"], "ratio_size_depth1"] = size/(bidQ1 + askQ1)
+    df.loc[df["sec"]==df["min_sec"], "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
 
-    df.loc[sec0, "ratio_size_depth1"] = size/(bidQ1 + askQ1)
-    df.loc[sec0, "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
+    df.loc[df["sec"]!=df["min_sec"], "ratio_size_depth1"] = size_f1/(bidQ1 + askQ1)
+    df.loc[df["sec"]!=df["min_sec"], "ratio_size_depth2"] = size_f1/(bidQ1 + askQ1 + bidQ2 + askQ2)
+    
+    df.loc[:, "depth_1"] = askQ1 + bidQ1
+    
+    df.loc[:, "WAP1"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
+    ln_ret = np.log(df["WAP1"]/df["WAP1"].shift(1))
+    df.loc[:, "WAP1_lnret"] =  ln_ret 
+    df.loc[df["sec"]==df["min_sec"], "WAP1_lnret"] = np.nan
 
-    df.loc[~sec0, "ratio_size_depth1"] = size_f1/(bidQ1 + askQ1)
-    df.loc[~sec0, "ratio_size_depth2"] = size_f1/(bidQ1 + askQ1 + bidQ2 + askQ2)
+    for v in varnames:
+        
+        new_var = v + "_change"
+        df.loc[:, new_var] = np.abs(df[v] - df[v].shift(1))/df[v].shift(1)
+        df.loc[df["sec"]==df["min_sec"], new_var] = np.nan
+        df.loc[df["size"] != 0, new_var] = 0
+  
+    df.drop(columns=["min_sec"], inplace=True)
 
     return
 
 def gen_outliers_threshold(trade_df,
                      dist_unit = ["stock_id"],
                      var_names=["size"],
-                     percentile_spec=[95, 99],
+                     percentile_spec=[99],
                      output_dir=None):
     """
     
@@ -91,36 +106,28 @@ def gen_outliers_threshold(trade_df,
 
     if output_dir is not None:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        df.to_csv(os.path.join(output_dir, "outlier_thresholds_%s.csv"%now, index=False))
+        df.to_csv(os.path.join(output_dir, "size_outlier_thresholds_%s.csv"%now, index=False))
 
     return df
 
 def gen_outlier_flags(df, outliers_df,
                       varnames = ["WAP1_lnret", "size", "order_count"],
                       dist_unit = ["stock_id"],
-                      percentile_spec=[95, 99]):
+                      percentile_spec=[99]):
 
     """
     df is merged book trade, after gen_merged_book_trade_var
     outliers_df is generated from gen_outliers_threshold
     percentile_spec has to be the same as that used in gen_outliers_threshold
     """
-    bidP1, askP1, bidQ1, askQ1 = [df[c] for c in ["bid_price1", "ask_price1", 
-                                                  "bid_size1", "ask_size1"]]
     
-    df = df.merge(outliers_df, on = dist_unit)
-    
-    df.loc[:, "size_add"] = df["size"] + df["size_f1"] + df["size_l1"]
-
-    df.loc[:, "WAP1"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
-    ln_ret = np.log(df["WAP1"]/df["WAP1"].shift(1))
-    df.loc[:, "WAP1_lnret"] =  ln_ret 
-    df.loc[df["sec"]==0, "WAP1_lnret"] = np.nan       
+    df = df.merge(outliers_df, on = dist_unit)   
+    df.loc[:, "size_add"] = df["size"] + df["size_f1"] + df["size_l1"]    
 
     for i in percentile_spec:
 
         threshold = "size" + "_pct_%d"%i
-        outlier_flag_name = "outlier_flag_%d"%i
+        outlier_flag_name = "size_outlier_flag_%d"%i
         
         outliers = (df["size_add"] >= df[threshold])
         df.loc[:, outlier_flag_name] = outliers
