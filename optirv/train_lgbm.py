@@ -95,7 +95,7 @@ def train_lgbm_model(config,
             pred_df = predict_target_class(train_df, model)
         else:
             pred_df = predict_target_class(valid_df, model)
-    elif params["objective"] == "rmse":
+    elif params["objective"] in ["rmse", "mape"]:
         if valid_df is None:      
             pred_df = predict_target(train_df, model, eval_cols=eval_cols)
         else:
@@ -170,7 +170,7 @@ def lgbm_CV(df, config, norm_df=None,
         all_preds.append(pred_df)
         
         # include training stats
-        if config["params"]["objective"] == "rmse":
+        if config["params"]["objective"] in ["rmse", "mape"]:
             train_cv = predict_target(train_df, model, eval_cols=eval_cols)
             train_cv.loc[:, "Fold"] = fold_num
             
@@ -224,7 +224,7 @@ def lgbm_CV(df, config, norm_df=None,
                 json.dump(results, wf) 
                
         # regression eval stats         
-        elif config["params"]["objective"] == "rmse":
+        elif config["params"]["objective"] in ["rmse", "mape"]:
             results = pd.concat(
                 [cv_reg_stats(all_preds, n_splits, target="target",  
                               pred_col=pred_col, mode="test"),

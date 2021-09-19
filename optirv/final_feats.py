@@ -47,6 +47,49 @@ def compute_ratio(df, numer_vars, denom_vars, new_names,
         for v, d, n in zip(numer_vars, denom_vars, new_names):
             __ratio__(df, v, d, n, log, epsi)
 
+def gen_rv_outliers(base,
+                    dist_unit = ["stock_id"],
+                    var_names=["WAP1_lnret_vol_all"],
+                    percentile_spec=[2],
+                    output_dir=None):
+    """
+    
+    """
+    df = base[["stock_id"]].drop_duplicates()
+    
+    for v in var_names:
+        for i in percentile_spec:
+            pct_temp = base.groupby(dist_unit, observed=True)[v].apply(
+                       lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
+            df = df.join(pct_temp, on=dist_unit)
+
+    if output_dir is not None:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        df.to_csv(os.path.join(output_dir, "rv_outlier_thresholds_%s.csv"%now, index=False))
+
+    return df
+
+def gen_rv_outliers_flag(base, df,
+                        dist_unit=["stock_id"],
+                        var_names=["WAP1_lnret_vol_all"],
+                        percentile_spec=[2]):
+    """
+    df is from gen_rv_outliers
+    percentile_spec has to be the same as in gen_rv_outliers
+    """
+
+    base = base.merge(df, on = dist_unit)
+
+    for v in var_names:
+        for i in percentile_spec:
+            threshold_var = v + "_pct_%d"%i
+            outliers_flag_name = "rv_flag" + "_pct_%d"%i
+            outliers = (base[v] <= base[threshold_var])
+            base.loc[outliers, outliers_flag_name] = 1
+            base.loc[~outliers, outliers_flag_name] = 0
+
+    return base
+
 def seg_based_feats(df, seg_df, var_names, seg_ranges=[[3,4]]):
     """
     """
@@ -232,8 +275,8 @@ def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
     else:
         return x
          
-def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
-                       pipeline=[], task="reg", output_dir=None):
+def final_feature_pipe(df, aux_df=None, stock_df=None, outlier_df=None,
+                       training=True, pipeline=[], task="reg", output_dir=None):
     """
     """
     
@@ -242,6 +285,8 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
         "square_vars": square_vars,
         "interact_vars": interact_vars,
         "compute_ratio": compute_ratio,
+        "gen_rv_outliers": gen_rv_outliers,
+        "gen_rv_outliers_flag": gen_rv_outliers_flag,
         "seg_based_feats": seg_based_feats,
         "seg_based_agg": seg_based_agg,
         "seg_based_change": seg_based_change,
@@ -261,7 +306,7 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
     # train-only functions
     train_only = ["gen_weights", "gen_target_change", "gen_target_class",
                   "agg_by_stock_id", "gen_distribution_stats",
-                  "standardize_target"]
+                  "standardize_target", "gen_rv_outliers"]
     
     # data mapping
     data_dict = {
@@ -270,6 +315,8 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
     }
     if stock_df is not None:
         data_dict["stock"] = stock_df.copy()
+    if outlier_df is not None:
+        data_dict["out_rv"] = stock_df.copy()
     
     # record time
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -312,7 +359,11 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
                 if pl["output"] == "stock" and output_dir is not None:
                     data_dict[pl["output"]].to_csv(os.path.join(
                         output_dir, "stocks_%s_%s.csv"%(task, now)
-                    ), index=False)               
+                    ), index=False)
+                if pl["output"] == "out_rv" and output_dir is not None:
+                    data_dict[pl["output"]].to_csv(os.path.join(
+                        output_dir, "out_rv_%s_%s.csv"%(task, now)
+                    ), index=False)                
             
     if output_dir is not None:
         with open(os.path.join(

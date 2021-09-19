@@ -311,50 +311,6 @@ def gen_depth_change(base, df,
 
     return base
 
-def gen_rv_outliers(base,
-                    dist_unit = ["stock_id"],
-                    var_names=["WAP1_lnret_vol_all"],
-                    percentile_spec=[2],
-                    output_dir=None):
-    """
-    
-    """
-    df = base[["stock_id"]].drop_duplicates()
-    
-    for v in var_names:
-        for i in percentile_spec:
-            pct_temp = base.groupby(dist_unit, observed=True)[v].apply(
-                       lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
-            df = df.join(pct_temp, on=dist_unit)
-
-    if output_dir is not None:
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        df.to_csv(os.path.join(output_dir, "rv_outlier_thresholds_%s.csv"%now, index=False))
-
-    return df
-
-def gen_rv_outliers_flag(base, df,
-                        dist_unit=["stock_id"],
-                        var_names=["WAP1_lnret_vol_all"],
-                        percentile_spec=[2]):
-    """
-    df is from gen_rv_outliers
-    percentile_spec has to be the same as in gen_rv_outliers
-    """
-
-    base = base.merge(df, on = dist_unit)
-
-    for v in var_names:
-        for i in percentile_spec:
-            threshold_var = v + "_pct_%d"%i
-            outliers_flag_name = "rv_flag" + "_pct_%d"%i
-            outliers = (base[v] <= base[threshold_var])
-            base.loc[outliers, outliers_flag_name] = 1
-            base.loc[~outliers, outliers_flag_name] = 0
-
-    return base
-
-
 # ____ Depracated ____ #     
 
 def gen_var_relto_dist(base, dist_df,
