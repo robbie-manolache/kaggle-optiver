@@ -27,7 +27,8 @@ def gen_seg_base(df, key_cols=["stock_id", "time_id", "segment"]):
 
 def feat_eng_pipeline(data_mode="train", data_dir=None, 
                       stock_list=None, batch_size=3,
-                      pipeline=[], output_dir=None):
+                      pipeline=[], outlier_thresholds=None,
+                      output_dir=None):
     """
     """
     
@@ -54,6 +55,7 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         "add_real_vol_cols": fe.add_real_vol_cols,
         "compute_BPV_retquad": fe.compute_BPV_retquad,
         "gen_weighted_var": fe.gen_weighted_var,
+        "gen_st_dev": fe.gen_st_dev,
         "gen_trade_stats": fe.gen_trade_stats,
         "gen_adj_trade_stats": fe.gen_adj_trade_stats,
         "gen_last_obs": fe.gen_last_obs
@@ -75,25 +77,31 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
             "base": base,
             "base_seg": None
         }
+        if outlier_thresholds is not None:
+            data_dict["size_tsh"] = outlier_thresholds
         
         # iterate through pipeline
         for pl in pipeline:
             
-            # get function object to apply
-            func = __get_func__(pl["func"], func_map)
-            
-            # set optional arguments
-            if pl["args"] is None:
-                args = {}
+            if data_mode == "test" and pl["func"] == "gen_outliers_threshold":
+                pass
+
             else:
-                args = pl["args"]
+                # get function object to apply
+                func = __get_func__(pl["func"], func_map)
                 
-            # perform in place or assign to output object
-            if pl["output"] is None:
-                func(*[data_dict[d] for d in pl["input"]], **args)
-            else:
-                data_dict[pl["output"]] = func(*[data_dict[d] for d 
-                                                 in pl["input"]], **args)        
+                # set optional arguments
+                if pl["args"] is None:
+                    args = {}
+                else:
+                    args = pl["args"]
+                    
+                # perform in place or assign to output object
+                if pl["output"] is None:
+                    func(*[data_dict[d] for d in pl["input"]], **args)
+                else:
+                    data_dict[pl["output"]] = func(*[data_dict[d] for d 
+                                                    in pl["input"]], **args)        
 
         # append to list
         main_df_list.append(data_dict["base"])
@@ -116,8 +124,9 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
             output_dir, "%s_main_%s.parquet"%(data_mode, now)), index=False)
         
         # save segment-level training data if available
-        seg_df.to_parquet(os.path.join(
-            output_dir, "%s_seg_%s.parquet"%(data_mode, now)), index=False)        
+        if seg_df is not None:
+            seg_df.to_parquet(os.path.join(
+                output_dir, "%s_seg_%s.parquet"%(data_mode, now)), index=False)        
         
         # save pipeline config
         with open(os.path.join(

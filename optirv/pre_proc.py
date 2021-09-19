@@ -1,8 +1,9 @@
 
 # Module for pre-processing functions
 
+import os
 import numpy as np
-from numpy.core.numeric import full
+from datetime import datetime
 import pandas as pd
 
 def merge_book_trade(book_df, trade_df, full_frame=True, impute_book=True,
@@ -75,7 +76,8 @@ def gen_merged_book_trade_var(df):
 def gen_outliers_threshold(trade_df,
                      dist_unit = ["stock_id"],
                      var_names=["size"],
-                     percentile_spec=[98, 99]):
+                     percentile_spec=[95, 99],
+                     output_dir=None):
     """
     
     """
@@ -87,12 +89,16 @@ def gen_outliers_threshold(trade_df,
                        lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
             df = df.join(pct_temp, on=dist_unit)
 
+    if output_dir is not None:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        df.to_csv(os.path.join(output_dir, "outlier_thresholds_%s.csv"%now, index=False))
+
     return df
 
 def gen_outlier_flags(df, outliers_df,
                       varnames = ["WAP1_lnret", "size", "order_count"],
                       dist_unit = ["stock_id"],
-                      percentile_spec=[98, 99]):
+                      percentile_spec=[95, 99]):
 
     """
     df is merged book trade, after gen_merged_book_trade_var
@@ -168,7 +174,7 @@ def gen_ob_slope(df):
 
     return
 
-def gen_ob_var(df):  
+def gen_ob_var(df, group_cols = ["stock_id", "time_id"]):  
     """
     df: book_df
     """
@@ -181,25 +187,28 @@ def gen_ob_var(df):
     df.loc[:, "depth_2"] = askQ2 + bidQ2
     df.loc[:, "depth_total"] =  df["depth_1"] + df["depth_2"]
     df.loc[:, "ratio_depth1_2"] = (askQ1 + bidQ1)/(askQ2 + bidQ2)
-    df.loc[:, "ratio_a_bdepth1"] = askQ1/bidQ1
-    df.loc[:, "ratio_a_bdepth2"] = (askQ1 + askQ2)/(bidQ1 + bidQ2)
+    df.loc[:, "depth_imb1"] = (askQ1 - bidQ1)/(askQ1 + bidQ1)
+    df.loc[:, "depth_imb_total"] = ((askQ1 + askQ2) - (bidQ1 + bidQ2))/df["depth_total"]
 
     df.loc[:, "q_spread1"] = 100 * (askP1 - bidP1)/m1
     df.loc[:, "q_spread2"] = 100 * (askP2 - bidP2)/m1
-    df.loc[:, "q_spread1_d"] = 100 * (askP1 - bidP1)
-    df.loc[:, "q_spread2_d"] = 100 * (askP2 - bidP2)
-    df.loc[:, "ratio_askP"] = askP2/askP1
-    df.loc[:, "ratio_bidP"] = bidP1/bidP2
+    #df.loc[:, "q_spread1_d"] = 100 * (askP1 - bidP1)
+    #df.loc[:, "q_spread2_d"] = 100 * (askP2 - bidP2)
+    df.loc[:, "ask_spread"] = 100 * (askP2 - askP1)/m1
+    df.loc[:, "bid_spread"] = 100 * (bidP1 - bidP2)/m1
 
     df.loc[:, "midquote1_diff"] = (df.groupby(["stock_id", "time_id"])["bid_price1"].diff() != 0) \
                                 | (df.groupby(["stock_id", "time_id"])["ask_price1"].diff() != 0)
-    df.loc[df["sec"]==0, "midquote1_diff"] = False
+
+    df.loc[:, "min_sec"] = df.groupby(group_cols, 
+                           observed=True)["sec"].transform("min")                            
+    df.loc[df["sec"]==df["min_sec"], "midquote1_diff"] = False
+    df.drop(columns=["min_sec"], inplace=True)
 
     return
 
-def compute_lnret(df, varnames=["WAP1", "WAP2"], 
-                  group_cols=["stock_id", "time_id"],
-                  power=[1], absolute=[]):
+def compute_lnret(df, varnames=["WAP1", "WAP2"],
+                  group_cols = ["stock_id", "time_id"]):
     """
     df = book_df
     power:      list of powers used to further transform log returns 
@@ -208,30 +217,20 @@ def compute_lnret(df, varnames=["WAP1", "WAP2"],
     
     NOTE: power and absolute can be different!
     """
-    
-    for p in set(power + absolute):
-        for v in varnames:
-            
-            # derive variable name
-            name = v+"_lnret"
-            if p == 2:
-                name += "_sq"
-            elif p > 2:
-                name += "_pwr%d"%p
-            
-            # compute log returns  
-            lnret = np.log((df[v]/df[v].shift(1)))  
 
-            if p in power:
-                df.loc[:, name] = lnret ** p
-                df.loc[df["sec"]==0, name] = np.nan
-                
-            if p in absolute:
-                name += "_abs"
-                lnret = np.abs(lnret ** p)
-                df.loc[:, name] = lnret     
-                df.loc[df["sec"]==0, name] = np.nan
-                
+    for v in varnames:
+        
+        # derive variable name
+        name = v+"_lnret"
+        
+        # compute log returns  
+        lnret = np.log((df[v]/df[v].shift(1)))  
+        df.loc[:, name] = lnret 
+        df.loc[:, "min_sec"] = df.groupby(group_cols, 
+                               observed=True)["sec"].transform("min")
+        df.loc[df["sec"]==df["min_sec"], name] = np.nan
+        df.drop(columns=["min_sec"], inplace=True)
+
     return
 
 def gen_trade_var(df, group_cols=["stock_id", "time_id"]):
@@ -243,39 +242,13 @@ def gen_trade_var(df, group_cols=["stock_id", "time_id"]):
                                       observed=True)["sec"].transform("max")
     df.loc[:, "sec_f1"] = df["sec"].shift(-1)
     df.loc[df["sec"]==df["max_sec"], "sec_f1"] = 600
-    
+
     df.loc[:, "time_length"] = df["sec_f1"] - df["sec"]
     df.drop(columns=["max_sec", "sec_f1"], inplace=True)
+    
     df.loc[:, "trade_size"] = df["size"]/df["order_count"]
 
     return
-
-def gen_segment_weights(df, n=3, group_cols=["stock_id", "time_id", "segment"]):
-    
-    seg_df = df[group_cols].drop_duplicates()
-    seg_grps = df.groupby(group_cols, observed=True)
-
-    seg_df.loc[:, "end_sec"] = seg_grps["sec"].transform("max")
-    seg_df.loc[seg_df["segment"]==(n-1), "end_sec"] = 599
-    seg_df.loc[:, "start_sec"] = seg_df.groupby(
-        group_cols[:-1])["end_sec"].shift(1).fillna(-1)
-    seg_df.loc[:, "weight"] = (seg_df["end_sec"] - seg_df["start_sec"]) / 600
-          
-    return seg_df[group_cols + ["weight"]]
-        
-def gen_segments_by_obs(df, n=3, group_cols=["stock_id", "time_id"],
-                        return_segment_weights=True):
-    """
-    """
-    grps = df.groupby(group_cols, observed=True)
-    pctile = grps.cumcount() / grps["sec"].transform("count")
-    df.loc[:, "segment"] = pd.cut(pctile, 
-                                    bins=np.linspace(0, 1, n+1), 
-                                    labels=range(n), 
-                                    include_lowest=True)        
-    if return_segment_weights:
-        new_group_cols = group_cols + ["segment"]
-        return gen_segment_weights(df, n, new_group_cols)
 
 def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
                          int_cols=["sec", "bid_size1", "ask_size1",
@@ -311,7 +284,33 @@ def gen_segments_by_time(df, n=3, group_cols=["stock_id", "time_id"],
                 full_df.loc[:, ic] = full_df[ic].astype(int)
                 
         return full_df    
-             
 
+# ____ Depracated ____ #             
 
+def gen_segment_weights(df, n=3, group_cols=["stock_id", "time_id", "segment"]):
+    
+    seg_df = df[group_cols].drop_duplicates()
+    seg_grps = df.groupby(group_cols, observed=True)
+
+    seg_df.loc[:, "end_sec"] = seg_grps["sec"].transform("max")
+    seg_df.loc[seg_df["segment"]==(n-1), "end_sec"] = 599
+    seg_df.loc[:, "start_sec"] = seg_df.groupby(
+        group_cols[:-1])["end_sec"].shift(1).fillna(-1)
+    seg_df.loc[:, "weight"] = (seg_df["end_sec"] - seg_df["start_sec"]) / 600
+          
+    return seg_df[group_cols + ["weight"]]
+        
+def gen_segments_by_obs(df, n=3, group_cols=["stock_id", "time_id"],
+                        return_segment_weights=True):
+    """
+    """
+    grps = df.groupby(group_cols, observed=True)
+    pctile = grps.cumcount() / grps["sec"].transform("count")
+    df.loc[:, "segment"] = pd.cut(pctile, 
+                                    bins=np.linspace(0, 1, n+1), 
+                                    labels=range(n), 
+                                    include_lowest=True)        
+    if return_segment_weights:
+        new_group_cols = group_cols + ["segment"]
+        return gen_segment_weights(df, n, new_group_cols)
 
