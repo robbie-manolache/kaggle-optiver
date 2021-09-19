@@ -47,8 +47,22 @@ def compute_ratio(df, numer_vars, denom_vars, new_names,
         for v, d, n in zip(numer_vars, denom_vars, new_names):
             __ratio__(df, v, d, n, log, epsi)
 
-def seg_based_feats(df, seg_df, feat_func="std",
-                    var_names="AUTO", new_names="AUTO"):
+def seg_based_feats(df, seg_df, var_names, seg_ranges=[[3,4]]):
+    """
+    """
+    
+    out_df = df.copy()
+    for sr in seg_ranges:
+        new_names = [v+"_seg%d.%d"%tuple(sr) for v in var_names]
+        new_df = seg_df.query("@sr[0] <= segment <= @sr[1]").groupby(
+            ["stock_id", "time_id"])[var_names].mean()
+        new_df.columns = new_names
+        out_df = out_df.join(new_df, on=["stock_id", "time_id"]) 
+        
+    return out_df
+
+def seg_based_agg(df, seg_df, feat_func="std",
+                  var_names="AUTO", new_names="AUTO"):
     """
     """
     
@@ -229,6 +243,7 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
         "interact_vars": interact_vars,
         "compute_ratio": compute_ratio,
         "seg_based_feats": seg_based_feats,
+        "seg_based_agg": seg_based_agg,
         "seg_based_change": seg_based_change,
         "stock_embed_index": stock_embed_index,
         "agg_by_time_id": agg.agg_by_time_id,
@@ -278,15 +293,22 @@ def final_feature_pipe(df, aux_df=None, stock_df=None, training=True,
                 args = pl["args"]
                 
             # perform in place or assign to output object
-            if "input" in pl.keys():
-                data_dict["df"] = func(*[data_dict[d] for d 
-                                        in pl["input"]], **args)
-            else:
-                func(data_dict["df"], **args)  
+            if "output" not in pl.keys():
+                if "input" in pl.keys():
+                    data_dict["df"] = func(*[data_dict[d] for d 
+                                            in pl["input"]], **args)    
+                else:
+                    func(data_dict["df"], **args)  
                 
             # add any interim outputs and save
-            if "output" in pl.keys():
-                data_dict[pl["output"]] = func(data_dict["df"], **args)
+            else:
+                if "input" in pl.keys():
+                    data_dict[pl["output"]] = func(
+                        *[data_dict[d] for d in pl["input"]], **args)
+                else:
+                    data_dict[pl["output"]] = func(data_dict["df"], **args)
+                    
+                # save any stock-level stats for pred deployment
                 if pl["output"] == "stock" and output_dir is not None:
                     data_dict[pl["output"]].to_csv(os.path.join(
                         output_dir, "stocks_%s_%s.csv"%(task, now)
