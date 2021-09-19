@@ -91,7 +91,8 @@ def gen_outliers_threshold(trade_df,
 
     if output_dir is not None:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        df.to_csv(os.path.join(output_dir, "outlier_thresholds_%s.csv"%now, index=False))
+        df.to_csv(os.path.join(output_dir, "outlier_thresholds_%s.csv"%now), 
+                  index=False)
 
     return df
 
