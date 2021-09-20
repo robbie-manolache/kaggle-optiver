@@ -58,7 +58,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         "gen_st_dev": fe.gen_st_dev,
         "gen_trade_stats": fe.gen_trade_stats,
         "gen_adj_trade_stats": fe.gen_adj_trade_stats,
-        "gen_last_obs": fe.gen_last_obs
+        "gen_last_obs": fe.gen_last_obs,
+        "gen_depth_change": fe.gen_depth_change
         
     }
     
@@ -66,6 +67,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
     dl = DataLoader(data_mode=data_mode, data_dir=data_dir)
     main_df_list = []
     seg_df_list = []
+    if outlier_thresholds is None:
+        outliers = []
     
     # stock batch iterator
     for base, book, trade in tqdm(dl.batcher(stock_list, batch_size)):
@@ -77,9 +80,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
             "base": base,
             "base_seg": None
         }
-        if outlier_thresholds is None:
-            outliers = []
-        else:
+        
+        if outlier_thresholds is not None:
             data_dict["size_tsh"] = outlier_thresholds
 
         # iterate through pipeline
