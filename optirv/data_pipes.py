@@ -77,9 +77,11 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
             "base": base,
             "base_seg": None
         }
-        if outlier_thresholds is not None:
+        if outlier_thresholds is None:
+            outliers = []
+        else:
             data_dict["size_tsh"] = outlier_thresholds
-        
+
         # iterate through pipeline
         for pl in pipeline:
             
@@ -107,6 +109,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         main_df_list.append(data_dict["base"])
         if data_dict["base_seg"] is not None:
             seg_df_list.append(data_dict["base_seg"])
+        if "size_tsh" in data_dict.keys():
+            outliers.append(data_dict["size_tsh"])
     
     # compile output(s) 
     main_df = pd.concat(main_df_list, ignore_index=True)
@@ -132,5 +136,11 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         with open(os.path.join(
             output_dir, "%s_%s.json"%(data_mode, now)), "w") as wf:
             json.dump(pipeline, wf)
+
+        # save outlier data
+        if len(outliers) > 0:
+            outliers = pd.concat(outliers, ignore_index=True)
+            outliers.to_csv(os.path.join(
+                output_dir, "rv_outliers_%s.csv"%now), index=False)
         
     return main_df, seg_df
