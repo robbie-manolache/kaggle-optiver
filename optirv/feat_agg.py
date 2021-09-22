@@ -4,7 +4,29 @@
 # =-=-=-=-=-=-=-=-=-= # =-=-=-=-=-=-=-=-=-= #
 
 import numpy as np
+from sklearn.cluster import KMeans
 
+def cluster_stocks(df, n_K=5, seed=31,
+                   features=["nsec_w_trades", 
+                             "WAP1_lnret_vol_all", "WAP1_lnret_BPV",
+                             "q_spread1_tw", "q_spread2_tw", 
+                             "q_spread1_std"],
+                   stock_31=True):
+    """
+    """
+    if stock_31:
+        n_K += -1
+    k_df = df.groupby("stock_id")[features].mean().reset_index()
+    kmod = KMeans(n_clusters=n_K, random_state=31).fit(k_df[features])
+    k_df.loc[:, "K"] = kmod.labels_
+    if stock_31:
+        k_df.loc[k_df["stock_id"]==31, "K"] = n_K
+        n_K += 1    
+    k_dict = {K: k_df.query("K == @K")["stock_id"].tolist() 
+              for K in range(n_K)}
+    
+    return k_dict, k_df
+    
 def agg_by_time_id(df, agg_vars, agg_func="mean", suffix="_agg"):
     """
     """

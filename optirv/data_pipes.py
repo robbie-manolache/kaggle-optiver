@@ -11,6 +11,8 @@ import pandas as pd
 from optirv.data_loader import DataLoader
 import optirv.pre_proc as pp
 import optirv.feat_eng as fe
+import optirv.final_feats as ff
+import optirv.feat_agg as agg
 
 def __get_func__(func_name, func_map):
     """
@@ -112,7 +114,8 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
         if data_dict["base_seg"] is not None:
             seg_df_list.append(data_dict["base_seg"])
         if "size_tsh" in data_dict.keys():
-            outliers.append(data_dict["size_tsh"])
+            if outlier_thresholds is None:
+                outliers.append(data_dict["size_tsh"])
     
     # compile output(s) 
     main_df = pd.concat(main_df_list, ignore_index=True)
@@ -146,3 +149,102 @@ def feat_eng_pipeline(data_mode="train", data_dir=None,
                 output_dir, "rv_outliers_%s.csv"%now), index=False)
         
     return main_df, seg_df
+
+def final_feature_pipe(df, aux_df=None, stock_df=None, outlier_df=None,
+                       training=True, pipeline=[], task="reg", output_dir=None):
+    """
+    """
+    
+    # function mapping
+    func_map = {
+        "adjust_vars": ff.adjust_vars,
+        "cap_vars": ff.cap_vars,
+        "log_norm": ff.log_norm,
+        "interact_vars": ff.interact_vars,
+        "compute_ratio": ff.compute_ratio,
+        "gen_rv_outliers": ff.gen_rv_outliers,
+        "gen_rv_outliers_flag": ff.gen_rv_outliers_flag,
+        "seg_based_feats": ff.seg_based_feats,
+        "seg_based_agg": ff.seg_based_agg,
+        "seg_based_change": ff.seg_based_change,
+        "stock_embed_index": ff.stock_embed_index,
+        "agg_by_time_id": agg.agg_by_time_id,
+        "agg_by_stock_id": agg.agg_by_stock_id,
+        "gen_distribution_stats": agg.gen_distribution_stats,
+        "gen_target_change": ff.gen_target_change,
+        "gen_target_class": ff.gen_target_class,
+        "gen_weights": ff.gen_weights,
+        "add_stock_vars": ff.add_stock_vars,
+        "drop_vars": ff.drop_vars,
+        "standardize_by_stock": ff.standardize_by_stock,
+        "standardize_target": ff.standardize_target
+    }
+    
+    # train-only functions
+    train_only = ["gen_weights", "gen_target_change", "gen_target_class",
+                  "agg_by_stock_id", "gen_distribution_stats",
+                  "standardize_target", "gen_rv_outliers"]
+    
+    # data mapping
+    data_dict = {
+        "df": df.copy(),
+        "aux_df": aux_df.copy()
+    }
+    if stock_df is not None:
+        data_dict["stock"] = stock_df.copy()
+    if outlier_df is not None:
+        data_dict["out_rv"] = stock_df.copy()
+    
+    # record time
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # iterate through pipeline
+    for pl in pipeline:
+        
+        # skip training-only functions in prediction mode
+        if not training and pl["func"] in train_only:
+            pass
+        
+        else:
+        
+            # get function object to apply
+            func = __get_func__(pl["func"], func_map)
+            
+            # set optional arguments
+            if pl["args"] is None:
+                args = {}
+            else:
+                args = pl["args"]
+                
+            # perform in place or assign to output object
+            if "output" not in pl.keys():
+                if "input" in pl.keys():
+                    data_dict["df"] = func(*[data_dict[d] for d 
+                                            in pl["input"]], **args)    
+                else:
+                    func(data_dict["df"], **args)  
+                
+            # add any interim outputs and save
+            else:
+                if "input" in pl.keys():
+                    data_dict[pl["output"]] = func(
+                        *[data_dict[d] for d in pl["input"]], **args)
+                else:
+                    data_dict[pl["output"]] = func(data_dict["df"], **args)
+                    
+                # save any stock-level stats for pred deployment
+                if pl["output"] == "stock" and output_dir is not None:
+                    data_dict[pl["output"]].to_csv(os.path.join(
+                        output_dir, "stocks_%s_%s.csv"%(task, now)
+                    ), index=False)
+                if pl["output"] == "out_rv" and output_dir is not None:
+                    data_dict[pl["output"]].to_csv(os.path.join(
+                        output_dir, "out_rv_%s_%s.csv"%(task, now)
+                    ), index=False)                
+            
+    if output_dir is not None:
+        with open(os.path.join(
+            output_dir, "final_proc_%s_%s.json"%(task, now)), "w") as wf:
+            json.dump(pipeline, wf)  
+            
+    return data_dict["df"]                  

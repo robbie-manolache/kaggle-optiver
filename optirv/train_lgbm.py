@@ -51,6 +51,7 @@ def train_lgbm_model(config,
     e_stop = config["e_stop"] # int
     x_cols = config["x_cols"] # list
     x_cats = config["x_cats"] # list / None
+    stocks = config["stocks"] # list / None
     weight = config["weight"] # str / None
     target = config["target"] # str
     
@@ -62,7 +63,15 @@ def train_lgbm_model(config,
     if weight is None:
         weight_vec = None
     else:
-        weight_vec = train_df[weight]
+        if stocks is not None:
+            weight_vec = train_df.query("stock_id in @stocks")[weight]
+        else:
+            weight_vec = train_df
+        
+    
+    # filter by stock_id if applicable
+    if stocks is not None:
+        train_df = train_df.query("stock_id in @stocks").copy()
     
     # create lightGBM datasets
     train_lgb = lgb.Dataset(train_df[x_cols], 
@@ -72,7 +81,11 @@ def train_lgbm_model(config,
     if valid_df is None:
         valid_lgb, e_stop = None, None
     else:
-        valid_lgb = lgb.Dataset(valid_df[x_cols], label=valid_df[target],
+        # filter by stock_id if applicable
+        if stocks is not None:
+            valid_df = valid_df.query("stock_id in @stocks").copy()
+        valid_lgb = lgb.Dataset(valid_df[x_cols], 
+                                label=valid_df[target],
                                 categorical_feature=x_cats)
     
     # train model
@@ -85,7 +98,7 @@ def train_lgbm_model(config,
                       verbose_eval=verbose)
     
     # set up eval_cols
-    eval_cols = [target]
+    eval_cols = [target, "WAP1_lnret_vol_all"]
     if "target" not in eval_cols:
         eval_cols.append("target")
     
@@ -142,7 +155,7 @@ def lgbm_CV(df, config, norm_df=None,
     
     # get target name and set up eval_cols
     target = config["target"]
-    eval_cols = [target]
+    eval_cols = [target, "WAP1_lnret_vol_all"]
     if "target" not in eval_cols:
         eval_cols.append("target")
     

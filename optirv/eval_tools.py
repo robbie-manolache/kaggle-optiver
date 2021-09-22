@@ -28,8 +28,9 @@ def cv_reg_stats(preds, n_splits, target,
         mse = np.mean(np.square(pred_df[target] - pred_df[pred_col]))
         mape = np.mean(np.abs(pred_df[target] - pred_df[pred_col]))
         rmspe = rmspe_calc(pred_df[target], pred_df[pred_col])       
-        results.append({"Fold": fold, "Mode": mode,
-                        "RMSE": np.sqrt(mse), "MAPE": mape, "RMSPE": rmspe})
+        results.append({"Fold": fold, "Mode": mode, 
+                        "RMSE": np.sqrt(mse)*100, 
+                        "MAPE": mape*100, "RMSPE": rmspe})
         
     return pd.DataFrame(results)   
 
@@ -48,6 +49,8 @@ def predict_target(eval_df, model, quantile=None,
     
     # insert preds
     df.loc[:, pred_col] = model.predict(eval_df[model.feature_name()])
+    if "target_chg" in eval_cols:
+        df.loc[:, pred_col] = np.exp(df[pred_col])*df["WAP1_lnret_vol_all"]
     return df
 
 def adjust_preds(df, norm_df, min_rv=0.00011, sqr_target=True):
