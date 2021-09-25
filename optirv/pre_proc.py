@@ -61,8 +61,7 @@ def gen_merged_book_trade_var(df, group_cols = ["stock_id", "time_id"],
          "bid_size2", "ask_size2", "size", "size_f1"]]
 
     df.loc[:, "m1"] = (bidP1 + askP1)/2
-    df.loc[:, "min_sec"] = df.groupby(group_cols, 
-                                      observed=True)["sec"].transform("min") 
+    df.loc[:, "min_sec"] = df.groupby(group_cols, observed=True)["sec"].transform("min") 
 
     df.loc[df["sec"]==df["min_sec"], "ratio_size_depth1"] = size/(bidQ1 + askQ1)
     df.loc[df["sec"]==df["min_sec"], "ratio_size_depth2"] = size/(bidQ1 + askQ1 + bidQ2 + askQ2)
@@ -71,6 +70,7 @@ def gen_merged_book_trade_var(df, group_cols = ["stock_id", "time_id"],
     df.loc[df["sec"]!=df["min_sec"], "ratio_size_depth2"] = size_f1/(bidQ1 + askQ1 + bidQ2 + askQ2)
     
     df.loc[:, "depth_1"] = askQ1 + bidQ1
+    df.loc[:, "depth_total"] = askQ1 + bidQ1 + askQ2 + bidQ2
     
     df.loc[:, "WAP1"] = (bidP1*askQ1 + askP1*bidQ1)/(bidQ1 + askQ1)
     ln_ret = np.log(df["WAP1"]/df["WAP1"].shift(1))
@@ -87,57 +87,6 @@ def gen_merged_book_trade_var(df, group_cols = ["stock_id", "time_id"],
     df.drop(columns=["min_sec"], inplace=True)
 
     return
-
-def gen_outliers_threshold(trade_df,
-                     dist_unit = ["stock_id"],
-                     var_names=["size"],
-                     percentile_spec=[99],
-                     output_dir=None):
-    """
-    
-    """
-    df = trade_df[["stock_id"]].drop_duplicates()
-    
-    for v in var_names:
-        for i in percentile_spec:
-            pct_temp = trade_df.groupby(dist_unit, observed=True)[v].apply(
-                       lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
-            df = df.join(pct_temp, on=dist_unit)
-
-    if output_dir is not None:
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        df.to_csv(os.path.join(output_dir, "size_outlier_thresholds_%s.csv"%now, index=False))
-
-    return df
-
-def gen_outlier_flags(df, outliers_df,
-                      varnames = ["WAP1_lnret", "size", "order_count"],
-                      dist_unit = ["stock_id"],
-                      percentile_spec=[99]):
-
-    """
-    df is merged book trade, after gen_merged_book_trade_var
-    outliers_df is generated from gen_outliers_threshold
-    percentile_spec has to be the same as that used in gen_outliers_threshold
-    """
-    
-    df = df.merge(outliers_df, on = dist_unit)   
-    df.loc[:, "size_add"] = df["size"] + df["size_f1"] + df["size_l1"]    
-
-    for i in percentile_spec:
-
-        threshold = "size" + "_pct_%d"%i
-        outlier_flag_name = "size_outlier_flag_%d"%i
-        
-        outliers = (df["size_add"] >= df[threshold])
-        df.loc[:, outlier_flag_name] = outliers
-
-        for v in varnames:
-            adj_var_name = v + "_adj_%d"%i
-            df.loc[:, adj_var_name] = df[v]            
-            df.loc[outliers, adj_var_name] = 0    
-
-    return df
 
 def compute_WAP(df, group_cols = ["stock_id", "time_id"]):
     """
@@ -245,8 +194,7 @@ def gen_trade_var(df, group_cols=["stock_id", "time_id"]):
     df: trade_df
     """
     
-    df.loc[:, "max_sec"] = df.groupby(group_cols, 
-                                      observed=True)["sec"].transform("max")
+    df.loc[:, "max_sec"] = df.groupby(group_cols, observed=True)["sec"].transform("max")
     df.loc[:, "sec_f1"] = df["sec"].shift(-1)
     df.loc[df["sec"]==df["max_sec"], "sec_f1"] = 600
 
@@ -321,3 +269,65 @@ def gen_segments_by_obs(df, n=3, group_cols=["stock_id", "time_id"],
         new_group_cols = group_cols + ["segment"]
         return gen_segment_weights(df, n, new_group_cols)
 
+def gen_outliers_threshold(trade_df,
+                     dist_unit = ["stock_id"],
+                     var_names=["size"],
+                     percentile_spec=[99],
+                     output_dir=None):
+    """
+    
+    """
+    df = trade_df[["stock_id"]].drop_duplicates()
+    
+    for v in var_names:
+        for i in percentile_spec:
+            pct_temp = trade_df.groupby(dist_unit, observed=True)[v].apply(
+                       lambda x: np.percentile(x.dropna(),i)).rename(v + "_pct_%d"%i)
+            df = df.join(pct_temp, on=dist_unit)
+
+    if output_dir is not None:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        df.to_csv(os.path.join(output_dir, "size_outlier_thresholds_%s.csv"%now, index=False))
+
+    return df
+
+def gen_outlier_flags(df, outliers_df,
+                      varnames = ["WAP1_lnret", "size", "order_count"],
+                      dist_unit = ["stock_id"],
+                      percentile_spec=[99]):
+
+    """
+    df is merged book trade, after gen_merged_book_trade_var
+    outliers_df is generated from gen_outliers_threshold
+    percentile_spec has to be the same as that used in gen_outliers_threshold
+    """
+    
+    df = df.merge(outliers_df, on = dist_unit)   
+    df.loc[:, "size_add"] = df["size"] + df["size_f1"] + df["size_l1"]    
+
+    for i in percentile_spec:
+
+        threshold = "size" + "_pct_%d"%i
+        outlier_flag_name = "size_outlier_flag_%d"%i
+        
+        outliers = (df["size_add"] >= df[threshold])
+        df.loc[:, outlier_flag_name] = outliers
+
+        for v in varnames:
+            adj_var_name = v + "_adj_%d"%i
+            df.loc[:, adj_var_name] = df[v]            
+            df.loc[outliers, adj_var_name] = 0    
+
+    return df
+
+def corr_multivar(base, df, var_list = [],
+                  group_unit = "stock_id", corr_var = "target"):
+    
+    for v in var_list:
+    
+        test = df.groupby(group_unit)[[v, corr_var]].corr().iloc[0::2][[corr_var]].reset_index()
+        test = test.drop(["level_1"], axis = 1)
+        test.columns = [group_unit, v+"_"+corr_var]
+        base = base.merge(test, on = group_unit)
+    
+    return base

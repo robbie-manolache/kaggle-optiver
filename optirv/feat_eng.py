@@ -11,7 +11,7 @@ import os as os
 def add_real_vol_cols(base, df, weights=None,
                       varnames=["WAP1_lnret", "WAP2_lnret"], 
                       group_cols=["stock_id", "time_id"],
-                      subsets=["all", "pos", "neg"]):
+                      subsets=["all"]):
     """
     df = book_df
     weights:    pandas.DataFrame containing a "weight" column and the same
@@ -21,9 +21,7 @@ def add_real_vol_cols(base, df, weights=None,
                 can be comparable no matter the length of the sub-period 
                 captured by the interval.
 
-    ALSO RUN THIS FOR
-        df = merged_book_trade
-        varnames = ["WAP1_lnret_adj_99"]
+    subsets: ["all", "pos", "neg"]
 
     """
 
@@ -74,9 +72,6 @@ def compute_BPV_retquad(base, df, weights=None,
                 can be comparable no matter the length of the sub-period 
                 captured by the interval.
                 
-    ALSO run this for df =  merged book trade
-                      varnames=["WAP1_lnret_adj_99"]
-    
     """
         
     for v in varnames:
@@ -147,6 +142,7 @@ def gen_weighted_var(base, df, equal_weight = False,
                                   "ask_spread", "bid_spread",
                                   "bid_size1", "ask_size1",
                                   "bid_size2", "ask_size2",
+                                  "depth1", "depth_total",
                                   "ratio_depth1_2", "depth_imb1", "depth_imb_total"], 
                     group_cols = ["stock_id", "time_id"], 
                     weight_var = "time_length"):
@@ -209,33 +205,22 @@ def gen_st_dev(base, df,
     
     return base
 
-def gen_last_obs(base, df, n_rows=1,
+def gen_max_var(base, df, 
                 var_names = ["q_spread1", "q_spread2", 
-                            "ask_spread", "bid_spread",
-                            "bid_size1", "ask_size1",
-                            "bid_size2", "ask_size2",
-                            "ratio_depth1_2", "depth_imb1", "depth_imb_total"],
+                            "depth1", "depth_total"], 
                 group_cols = ["stock_id", "time_id"]):
+    
     """
     df = book_df
-    generating the last observations for each stock_id-time_id
     """
-    for v in var_names:
-        
-        last_var_name = v + "_last"
-        
-        if n_rows > 1:
-            last_var_name += (str(n_rows) + "_avg")
-        
-        last_var = df.groupby(group_cols, observed = True)[group_cols + [v]]\
-            .tail(n_rows).rename(columns={v: last_var_name})
-        
-        if n_rows > 1:
-            last_var = last_var.groupby(group_cols, observed=True)[last_var_name]\
-                .mean().reset_index()
-        
-        base = base.merge(last_var, on = group_cols)
-    
+
+    new_names = [v + "_max" for v in var_names]
+
+    max_df = df.groupby(group_cols, observed=True)[var_names].max()
+    max_df.columns = new_names
+
+    base = base.join(max_df, on=group_cols)
+
     return base
 
 def gen_trade_stats(base, df,
@@ -248,16 +233,21 @@ def gen_trade_stats(base, df,
           be used to fill NA values for the corresponding variable
     """
     sum_order_count = df.groupby(group_cols, observed = True)["order_count"].\
-                      sum().rename("no_trades")
-    base = base.join(sum_order_count, on = group_cols, how="left").fillna(0)
-
+                      sum().rename("no_trades")  
     sum_quantity = df.groupby(group_cols, observed = True)["size"].\
                    sum().rename("total_trade_vol")
-    base = base.join(sum_quantity, on = group_cols, how="left").fillna(0)
-
     sum_obs = df.groupby(group_cols, observed = True)["sec"].\
                    count().rename("nsec_w_trades")
+    max_sec_size = df.groupby(group_cols, observed = True)["size"].\
+               max().rename("sec_size_max")
+    med_sec_size = df.groupby(group_cols, observed = True)["size"].\
+               median().rename("sec_size_med")
+    
+    base = base.join(sum_order_count, on = group_cols, how="left").fillna(0)
+    base = base.join(sum_quantity, on = group_cols, how="left").fillna(0)
     base = base.join(sum_obs, on = group_cols, how="left").fillna(0)
+    base = base.join(max_sec_size, on = group_cols, how="left").fillna(0)
+    base = base.join(med_sec_size, on = group_cols, how="left").fillna(0)
 
     for v, f in zip(var_names, fill_na):
         median_var_name = v + "_med"
@@ -269,26 +259,6 @@ def gen_trade_stats(base, df,
         
         base = base.join(median_var, on = group_cols, how="left").fillna(f)
         base = base.join(max_var, on = group_cols, how="left").fillna(f)
-    
-    return base
-
-def gen_adj_trade_stats(base, df,
-                        var_names = ["order_count", "size"],
-                        output_var = ["total_trades", "total_trade_vol"],
-                        fill_na = 0,
-                        group_cols = ["stock_id", "time_id"],
-                        percentile_spec=[99]):
-    """
-    df = merged book trade
-    percentile_spec has to be the same as pre_proc.gen_outlier_flags
-    """
-
-    for i in percentile_spec:
-        for v, out_v in zip(var_names, output_var):
-
-            sum = df.groupby(group_cols, observed = True)[v+"_adj_%d"%i].\
-                        sum().rename(out_v+"_adj_%d"%i)
-            base = base.join(sum, on = group_cols, how="left").fillna(fill_na)  
     
     return base
 
@@ -337,4 +307,52 @@ def gen_var_relto_dist(base, dist_df,
             base = base.drop(dist_var_name, axis = 1)
 
     return base    
+
+def gen_last_obs(base, df, n_rows=1,
+                var_names = ["q_spread1", "q_spread2", 
+                            "ask_spread", "bid_spread",
+                            "bid_size1", "ask_size1",
+                            "bid_size2", "ask_size2",
+                            "ratio_depth1_2", "depth_imb1", "depth_imb_total"],
+                group_cols = ["stock_id", "time_id"]):
+    """
+    df = book_df
+    generating the last observations for each stock_id-time_id
+    """
+    for v in var_names:
         
+        last_var_name = v + "_last"
+        
+        if n_rows > 1:
+            last_var_name += (str(n_rows) + "_avg")
+        
+        last_var = df.groupby(group_cols, observed = True)[group_cols + [v]]\
+            .tail(n_rows).rename(columns={v: last_var_name})
+        
+        if n_rows > 1:
+            last_var = last_var.groupby(group_cols, observed=True)[last_var_name]\
+                .mean().reset_index()
+        
+        base = base.merge(last_var, on = group_cols)
+    
+    return base
+
+def gen_adj_trade_stats(base, df,
+                        var_names = ["order_count", "size"],
+                        output_var = ["total_trades", "total_trade_vol"],
+                        fill_na = 0,
+                        group_cols = ["stock_id", "time_id"],
+                        percentile_spec=[99]):
+    """
+    df = merged book trade
+    percentile_spec has to be the same as pre_proc.gen_outlier_flags
+    """
+
+    for i in percentile_spec:
+        for v, out_v in zip(var_names, output_var):
+
+            sum = df.groupby(group_cols, observed = True)[v+"_adj_%d"%i].\
+                        sum().rename(out_v+"_adj_%d"%i)
+            base = base.join(sum, on = group_cols, how="left").fillna(fill_na)  
+    
+    return base

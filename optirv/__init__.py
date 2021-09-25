@@ -11,7 +11,7 @@ from optirv.data_loader import DataLoader
 from optirv.pre_proc import merge_book_trade, compute_WAP, compute_lnret, \
     gen_ob_slope, gen_ob_var, gen_merged_book_trade_var, gen_trade_var, \
     gen_segments_by_time, gen_segments_by_obs, gen_segment_weights, \
-    gen_outliers_threshold, gen_outlier_flags 
+    gen_outliers_threshold, gen_outlier_flags, corr_multivar 
 from optirv.feat_eng import add_real_vol_cols, compute_BPV_retquad, \
     gen_weighted_var, gen_last_obs, gen_trade_stats, gen_adj_trade_stats, \
     gen_st_dev, gen_depth_change, gen_var_relto_dist
