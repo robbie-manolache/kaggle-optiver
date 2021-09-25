@@ -142,7 +142,7 @@ def gen_weighted_var(base, df, equal_weight = False,
                                   "ask_spread", "bid_spread",
                                   "bid_size1", "ask_size1",
                                   "bid_size2", "ask_size2",
-                                  "depth1", "depth_total",
+                                  "depth_1", "depth_total",
                                   "ratio_depth1_2", "depth_imb1", "depth_imb_total"], 
                     group_cols = ["stock_id", "time_id"], 
                     weight_var = "time_length"):
@@ -207,7 +207,7 @@ def gen_st_dev(base, df,
 
 def gen_max_var(base, df, 
                 var_names = ["q_spread1", "q_spread2", 
-                            "depth1", "depth_total"], 
+                             "depth_1", "depth_total"], 
                 group_cols = ["stock_id", "time_id"]):
     
     """

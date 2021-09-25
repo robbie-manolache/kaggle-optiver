@@ -5,7 +5,7 @@ from optirv import env_config, kernel_output_download
 # set config and data directory
 env_config("config.json")
 user = "slashie"
-kernels = ["orvp-lgbm-reg-0%d"%i for i in [1,2,3,4,5]]
+kernels = ["orvp-lgb-new-0%d"%i for i in [1,2,3,4,5,6,7]]
 local_path = os.path.join(os.environ.get("DATA_DIR"), 
                           "kaggle-kernel-download")
 

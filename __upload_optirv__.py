@@ -17,7 +17,7 @@ else:
                          "Realized Volatility Prediction competition")
 
 # get package file name
-file_name = "optirv-0.20-py3-none-any.whl"
+file_name = "optirv-1.0.0-py3-none-any.whl"
 
 # copy source file to destination    
 shutil.copy2(os.path.join("dist", file_name), 
@@ -26,4 +26,4 @@ shutil.copy2(os.path.join("dist", file_name),
 # upload to Kaggle datasets
 upload_dataset(dst_dir,
                new_version=True,
-               version_notes="Upload 0.20 version")
+               version_notes="Upload 1.0.0 version!")

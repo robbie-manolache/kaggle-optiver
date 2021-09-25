@@ -66,7 +66,7 @@ def train_lgbm_model(config,
         if stocks is not None:
             weight_vec = train_df.query("stock_id in @stocks")[weight]
         else:
-            weight_vec = train_df
+            weight_vec = train_df[weight]
         
     
     # filter by stock_id if applicable
