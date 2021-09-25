@@ -20,8 +20,8 @@ from optirv.final_feats import adjust_vars, interact_vars, compute_ratio, \
     add_stock_vars, standardize_by_stock, standardize_target, \
     reshape_segments, seg_based_change, seg_based_feats, seg_based_agg, \
     log_norm, cap_vars, drop_vars, gen_rv_outliers_flag, gen_rv_outliers 
-from optirv.feat_agg import cluster_stocks, agg_by_time_id, agg_by_stock_id, \
-    gen_distribution_stats
+from optirv.feat_agg import cluster_stocks, cluster_by_corr, agg_by_time_id, \
+    agg_by_stock_id, gen_distribution_stats
 from optirv.data_pipes import gen_seg_base, feat_eng_pipeline, final_feature_pipe
 from optirv.data_viz import plot_returns_by_time, plot_fcst_vs_act, \
     confusion_matrix

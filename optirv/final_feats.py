@@ -116,10 +116,14 @@ def gen_rv_outliers_flag(base, df,
 
     return base
 
-def seg_based_feats(df, seg_df, var_names, seg_ranges=[[3,4]]):
+def seg_based_feats(df, seg_df, var_names="AUTO", seg_ranges=[[3,4]]):
     """
     """
     
+    if var_names == "AUTO":
+        var_names = [c for c in seg_df.columns if c not in 
+                     ["stock_id", "time_id", "segment"]]
+        
     out_df = df.copy()
     for sr in seg_ranges:
         new_names = [v+"_seg%d.%d"%tuple(sr) for v in var_names]
