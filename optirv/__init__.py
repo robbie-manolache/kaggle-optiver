@@ -14,7 +14,7 @@ from optirv.pre_proc import merge_book_trade, compute_WAP, compute_lnret, \
     gen_outliers_threshold, gen_outlier_flags, corr_multivar 
 from optirv.feat_eng import add_real_vol_cols, compute_BPV_retquad, \
     gen_weighted_var, gen_last_obs, gen_trade_stats, gen_adj_trade_stats, \
-    gen_st_dev, gen_depth_change, gen_var_relto_dist
+    gen_st_dev, gen_depth_change, gen_var_relto_dist, gen_max_var
 from optirv.final_feats import adjust_vars, interact_vars, compute_ratio, \
     stock_embed_index, gen_target_class, gen_target_change, gen_weights, \
     add_stock_vars, standardize_by_stock, standardize_target, \
