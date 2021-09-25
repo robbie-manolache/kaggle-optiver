@@ -3,14 +3,11 @@
 # Feature finalization # -=-=-=-=-=-=-=-=-=-= #
 # -=-=-=-=-=-=-=-=-=-= # -=-=-=-=-=-=-=-=-=-= #
 
-from operator import index
 import os
 import json
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from optirv.data_pipes import __get_func__
-import optirv.feat_agg as agg
 
 def __ratio__(df, v, d, n, log, epsi):
     """
@@ -19,11 +16,38 @@ def __ratio__(df, v, d, n, log, epsi):
     if log:
         df.loc[:, n] = np.log(df[n]+epsi)
 
-def square_vars(df, var_names=["target"], new_names=["target"], pwr=2):
+def adjust_vars(df, var_names, new_names=None, 
+                pwr=1, mult=1, add=[0, 0]):
     """
     """
+    if new_names is None:
+        new_names = var_names
     for v, n in zip(var_names, new_names):  
-        df.loc[:, n] = df[v] ** pwr
+        df.loc[:, n] = ((df[v]+add[0]) ** pwr)*mult + add[1]
+
+def cap_vars(df, var_names, caps, new_names=None, add_flag=False):
+    """
+    """
+    if new_names is None:
+        new_names = var_names
+    for v, c, n in zip(var_names, range(len(caps)), new_names):
+        if add_flag:
+            df.loc[:, n+"_capped"] = (df[v] > caps[c]).astype(int)
+        df.loc[:, n] = np.where(df[v] > caps[c], caps[c], df[v])
+        
+def log_norm(df, var_names, new_names=None,
+             add=0, above1=False, add_flag=False, mult=1):
+    """
+    """
+    if new_names is None:
+        new_names = var_names
+    for v, n in zip(var_names, new_names):  
+        if above1:
+            df.loc[:, n] = np.where(df[v] > 1, np.log(df[v]+1e-8)+1, df[v])
+            if add_flag:
+                df.loc[:, n+"_abv1"] = (df[v] > 1).astype(int)
+        else:
+            df.loc[:, n] = np.log(df[v] + add) * mult
 
 def interact_vars(df, vars1, vars2, new_names):
     """
@@ -31,11 +55,13 @@ def interact_vars(df, vars1, vars2, new_names):
     for v1, v2, n in zip(vars1, vars2, new_names):  
         df.loc[:, n] = df[v1] * df[v2]
 
-def compute_ratio(df, numer_vars, denom_vars, new_names, 
-                  log=True, epsi=1e-8):
+def compute_ratio(df, numer_vars, denom_vars, 
+                  new_names=None, log=False, epsi=1e-8):
     """
     """
-    
+    if new_names is None:
+        new_names = numer_vars
+        
     if type(denom_vars) is str:
         
         d = denom_vars
@@ -90,10 +116,14 @@ def gen_rv_outliers_flag(base, df,
 
     return base
 
-def seg_based_feats(df, seg_df, var_names, seg_ranges=[[3,4]]):
+def seg_based_feats(df, seg_df, var_names="AUTO", seg_ranges=[[3,4]]):
     """
     """
     
+    if var_names == "AUTO":
+        var_names = [c for c in seg_df.columns if c not in 
+                     ["stock_id", "time_id", "segment"]]
+        
     out_df = df.copy()
     for sr in seg_ranges:
         new_names = [v+"_seg%d.%d"%tuple(sr) for v in var_names]
@@ -275,99 +305,3 @@ def reshape_segments(df, n, drop_cols=["stock_id", "time_id"],
     else:
         return x
          
-def final_feature_pipe(df, aux_df=None, stock_df=None, outlier_df=None,
-                       training=True, pipeline=[], task="reg", output_dir=None):
-    """
-    """
-    
-    # function mapping
-    func_map = {
-        "square_vars": square_vars,
-        "interact_vars": interact_vars,
-        "compute_ratio": compute_ratio,
-        "gen_rv_outliers": gen_rv_outliers,
-        "gen_rv_outliers_flag": gen_rv_outliers_flag,
-        "seg_based_feats": seg_based_feats,
-        "seg_based_agg": seg_based_agg,
-        "seg_based_change": seg_based_change,
-        "stock_embed_index": stock_embed_index,
-        "agg_by_time_id": agg.agg_by_time_id,
-        "agg_by_stock_id": agg.agg_by_stock_id,
-        "gen_distribution_stats": agg.gen_distribution_stats,
-        "gen_target_change": gen_target_change,
-        "gen_target_class": gen_target_class,
-        "gen_weights": gen_weights,
-        "add_stock_vars": add_stock_vars,
-        "drop_vars": drop_vars,
-        "standardize_by_stock": standardize_by_stock,
-        "standardize_target": standardize_target
-    }
-    
-    # train-only functions
-    train_only = ["gen_weights", "gen_target_change", "gen_target_class",
-                  "agg_by_stock_id", "gen_distribution_stats",
-                  "standardize_target", "gen_rv_outliers"]
-    
-    # data mapping
-    data_dict = {
-        "df": df.copy(),
-        "aux_df": aux_df.copy()
-    }
-    if stock_df is not None:
-        data_dict["stock"] = stock_df.copy()
-    if outlier_df is not None:
-        data_dict["out_rv"] = stock_df.copy()
-    
-    # record time
-    now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # iterate through pipeline
-    for pl in pipeline:
-        
-        # skip training-only functions in prediction mode
-        if not training and pl["func"] in train_only:
-            pass
-        
-        else:
-        
-            # get function object to apply
-            func = __get_func__(pl["func"], func_map)
-            
-            # set optional arguments
-            if pl["args"] is None:
-                args = {}
-            else:
-                args = pl["args"]
-                
-            # perform in place or assign to output object
-            if "output" not in pl.keys():
-                if "input" in pl.keys():
-                    data_dict["df"] = func(*[data_dict[d] for d 
-                                            in pl["input"]], **args)    
-                else:
-                    func(data_dict["df"], **args)  
-                
-            # add any interim outputs and save
-            else:
-                if "input" in pl.keys():
-                    data_dict[pl["output"]] = func(
-                        *[data_dict[d] for d in pl["input"]], **args)
-                else:
-                    data_dict[pl["output"]] = func(data_dict["df"], **args)
-                    
-                # save any stock-level stats for pred deployment
-                if pl["output"] == "stock" and output_dir is not None:
-                    data_dict[pl["output"]].to_csv(os.path.join(
-                        output_dir, "stocks_%s_%s.csv"%(task, now)
-                    ), index=False)
-                if pl["output"] == "out_rv" and output_dir is not None:
-                    data_dict[pl["output"]].to_csv(os.path.join(
-                        output_dir, "out_rv_%s_%s.csv"%(task, now)
-                    ), index=False)                
-            
-    if output_dir is not None:
-        with open(os.path.join(
-            output_dir, "final_proc_%s_%s.json"%(task, now)), "w") as wf:
-            json.dump(pipeline, wf)  
-            
-    return data_dict["df"]                  
