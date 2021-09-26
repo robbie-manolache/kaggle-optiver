@@ -44,8 +44,8 @@ def predict_target(eval_df, model, quantile=None,
 
     # derive predcol name
     pred_col = "pred"
-    if quantile is not None:
-        pred_col += "_%d"%(int(100*quantile))
+    #if quantile is not None:
+    #    pred_col += "_%d"%(int(100*quantile))
     
     # insert preds
     df.loc[:, pred_col] = model.predict(eval_df[model.feature_name()])

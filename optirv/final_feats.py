@@ -48,13 +48,26 @@ def log_norm(df, var_names, new_names=None,
                 df.loc[:, n+"_abv1"] = (df[v] > 1).astype(int)
         else:
             df.loc[:, n] = np.log(df[v] + add) * mult
-
-def interact_vars(df, vars1, vars2, new_names):
+            
+def abs_norm(df, var_names, new_names=None):
     """
     """
-    for v1, v2, n in zip(vars1, vars2, new_names):  
-        df.loc[:, n] = df[v1] * df[v2]
-
+    if new_names is None:
+        new_names = var_names
+    for v, n in zip(var_names, new_names):  
+        df.loc[:, n] = np.abs(df[v])
+        
+def interact_vars(df, vars1, vars2, new_names, op="mult"):
+    """
+    """
+    for v1, v2, n in zip(vars1, vars2, new_names):
+        if op == "mult":  
+            df.loc[:, n] = df[v1] * df[v2]
+        elif op == "add":
+            df.loc[:, n] = df[v1] + df[v2]
+        elif op == "minus":
+            df.loc[:, n] = df[v1] - df[v2]
+            
 def compute_ratio(df, numer_vars, denom_vars, 
                   new_names=None, log=False, epsi=1e-8):
     """

@@ -116,10 +116,10 @@ def train_lgbm_model(config,
     elif params["objective"] == "quantile":
         if valid_df is None:      
             pred_df = predict_target(train_df, model, eval_cols=eval_cols, 
-                                     alpha=params["alpha"])
+                                     quantile=params["alpha"])
         else:
             pred_df = predict_target(valid_df, model, eval_cols=eval_cols, 
-                                     alpha=params["alpha"])
+                                     quantile=params["alpha"])
     
     # save outputs as required
     if output_dir is not None:
@@ -185,22 +185,26 @@ def lgbm_CV(df, config, norm_df=None,
         # include training stats
         if config["params"]["objective"] in ["rmse", "mape"]:
             train_cv = predict_target(train_df, model, eval_cols=eval_cols)
-            train_cv.loc[:, "Fold"] = fold_num
+        elif config["params"]["objective"] == "quantile":
+            train_cv = predict_target(train_df, model, eval_cols=eval_cols,
+                                      quantile=config["params"]["alpha"])    
             
-            # adjust for any standardization
-            if norm_df is not None:
-                train_cv = adjust_preds(train_cv, norm_df, min_rv, sqr_target)                
-                pred_col = "pred_adj"
-            else:
-                pred_col = "pred"                 
-            
-            # calculate metrics and append
-            train_cv = cv_reg_stats(train_cv, 0, target="target",  
-                                    pred_col=pred_col, mode="train-cv")
-            train_cv.loc[:, "Fold"] = "Fold_%d"%fold_num
-            train_stats.append(train_cv)
-            print("RMSE: %.4f | MAPE: %.4f | RMSPE %.4f"%tuple(
-                train_cv.loc[0, ["RMSE", "MAPE", "RMSPE"]]))
+        train_cv.loc[:, "Fold"] = fold_num
+        
+        # adjust for any standardization
+        if norm_df is not None:
+            train_cv = adjust_preds(train_cv, norm_df, min_rv, sqr_target)                
+            pred_col = "pred_adj"
+        else:
+            pred_col = "pred"                 
+        
+        # calculate metrics and append
+        train_cv = cv_reg_stats(train_cv, 0, target="target",  
+                                pred_col=pred_col, mode="train-cv")
+        train_cv.loc[:, "Fold"] = "Fold_%d"%fold_num
+        train_stats.append(train_cv)
+        print("RMSE: %.4f | MAPE: %.4f | RMSPE %.4f"%tuple(
+            train_cv.loc[0, ["RMSE", "MAPE", "RMSPE"]]))
         
         print("|%s Fold %d complete! %s|"%("-"*25, fold_num, "-"*25))
         
@@ -237,7 +241,7 @@ def lgbm_CV(df, config, norm_df=None,
                 json.dump(results, wf) 
                
         # regression eval stats         
-        elif config["params"]["objective"] in ["rmse", "mape"]:
+        elif config["params"]["objective"] in ["rmse", "mape", "quantile"]:
             results = pd.concat(
                 [cv_reg_stats(all_preds, n_splits, target="target",  
                               pred_col=pred_col, mode="test"),
